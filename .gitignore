@@ -1,0 +1,43 @@
+# Build artifacts
+build/
+*.exe
+*.dll
+*.pdb
+
+# Go
+*.test
+*.out
+vendor/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.vs/
+*.DotSettings.user
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Logs
+*.log
+
+# NuGet
+packages/
+*.nupkg
