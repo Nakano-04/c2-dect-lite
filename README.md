@@ -115,5 +115,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- Built with Go, C# WPF, and ❤️
+- Built with Go, C# WPF
 - Inspired by leading C2 frameworks in the security community
+- Create for @Nakano_04 and @AngelaLuna14
