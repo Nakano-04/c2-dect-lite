@@ -117,4 +117,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - Built with Go, C# WPF
 - Inspired by leading C2 frameworks in the security community
-- Create by @Nakano_04 and @AngelaLuna14
+- @AngelaLuna14 thank you for your collaboration in the Go development and in the evasion logics
+
