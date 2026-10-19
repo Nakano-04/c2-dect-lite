@@ -1,6 +1,10 @@
 # C2-DECT Lite
 
-> **Open Source C2 Framework for Authorized Security Testing**
+> **Open Source Adversary Simulation Platform for Authorized Security Testing.**
+> End-to-end red-team simulation, from initial access to exploitation and beaconing.
+> The "C2" in the name is the telemetry transport of the simulation, not the product:
+> the point is to replay the attack chain in a controlled lab so defenders can measure
+> their own detection and containment.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -11,6 +15,31 @@
 - Only use on systems you own or have explicit written permission to test
 - Unauthorized access to computer systems is illegal
 - The authors are not responsible for misuse of this software
+
+## What it is
+
+C2-DECT Lite is a lightweight **adversary simulation platform**: it replays the
+attacker chain inside a controlled lab so a blue team can observe the same technique,
+traffic and artifact sequence a real attack would produce, and measure their
+detection and containment on it.
+
+| Stage | Component | What it simulates / measures |
+|---|---|---|
+| **Beaconing** | Go server (`server/`) | Telemetry channel of the simulation: check-in, session registry, JWT auth, SQLite. Used to rebuild the exercise timeline. |
+| **Post-exploitation** | Go agent (`agent/`) | 18 commands (system, files, shell, capture, sleep), each one tagged with its real maturity in the source. |
+| **Operator console** | WPF GUI (`gui/C2Dect`) | Timeline of the simulated session, tasking, and the evidence a defender would observe. |
+| **Channel protection** | ECDH + AES-256-GCM | Keeps the simulation traffic representative of a protected channel. |
+
+This is the **Lite** edition: beaconing, agent and console only. The full chain
+(initial access, recon, exploit lab, escalation, lateral movement, orchestration)
+lives in the full platform.
+
+**What it is not:**
+- **Not** a general-purpose C2 or a persistent attack infrastructure: beaconing exists
+  to make the simulation observable, measurable and auditable.
+- **Not** production-ready: whatever the source marks as `STUB`, `CHECK-ONLY`,
+  `SIMULADO` or `dry-run` is described as such.
+- **Never** run against third-party assets without written authorization.
 
 ## Features
 
@@ -116,6 +145,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Acknowledgments
 
 - Built with Go, C# WPF
-- Inspired by leading C2 frameworks in the security community
+- Inspired by leading adversary simulation platforms in the security community
 - @AngelaLuna14 thank you for your collaboration in the Go development and in the evasion logics
 
