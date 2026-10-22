@@ -11,8 +11,8 @@ using System.Threading.Tasks;
 namespace C2Dect.Services;
 
 /// <summary>
-/// Captura la generación de tenant vigente en el momento de lanzar un fetch.
-/// Si el operador cambia de tenant mientras la petición está en vuelo, IsCurrent
+/// Captura la generaciÃ³n de tenant vigente en el momento de lanzar un fetch.
+/// Si el operador cambia de tenant mientras la peticiÃ³n estÃ¡ en vuelo, IsCurrent
 /// pasa a false y la vista descarta la respuesta en lugar de pintar datos del
 /// tenant anterior.
 /// </summary>
@@ -35,26 +35,26 @@ public sealed class TenantScopeToken
 
 /// <summary>
 /// Contexto de tenant de la GUI. El servidor es multi-tenant desde el claim JWT;
-/// esta clase es la única que decide qué tenant está activo y la que publica el
+/// esta clase es la Ãºnica que decide quÃ© tenant estÃ¡ activo y la que publica el
 /// filtro a <see cref="ApiService.ActiveTenantId"/>.
 ///
-/// Contrato con el servidor Go (leído, no asumido):
+/// Contrato con el servidor Go (leÃ­do, no asumido):
 ///  - El tenant viaja en el claim "tid" del JWT (server/auth/jwt.go:39), nunca
 ///    en un header.
 ///  - callerTenantID (server/api/handlers.go:899) usa ese claim; sin claim
 ///    resuelve por DB y cae en 1.
 ///  - callerIsAdmin (server/api/handlers.go:915) es role == "admin", y
-///    operators.role NO está particionado por tenant: un admin de un tenant es
+///    operators.role NO estÃ¡ particionado por tenant: un admin de un tenant es
 ///    admin de todos. Deuda del servidor, no de la GUI.
 ///  - "?tenant_id=" solo lo honra un admin (server/api/handlers.go:956 para
-///    /sessions, :1259 para /loot). Para un no-admin el parámetro se ignora en
+///    /sessions, :1259 para /loot). Para un no-admin el parÃ¡metro se ignora en
 ///    silencio y el listado queda acotado al tenant del token.
 ///  - resolveTenantScope (server/api/multitenancy.go:14) devuelve 404 (no
 ///    oracular) y audita cross_tenant_access_attempt si un no-admin pide otro
 ///    tenant en categories/permissions/roles/users.
-///  - GET /api/tenants no está scopeado: cualquier operador autenticado ve el
+///  - GET /api/tenants no estÃ¡ scopeado: cualquier operador autenticado ve el
 ///    nombre y el id de todos los tenants.
-///  - allow_impact_modules se evalúa contra el tenant del TOKEN, no contra el
+///  - allow_impact_modules se evalÃºa contra el tenant del TOKEN, no contra el
 ///    seleccionado (server/api/handlers.go:1500).
 /// </summary>
 public sealed partial class TenantService : ObservableObject
@@ -78,8 +78,8 @@ public sealed partial class TenantService : ObservableObject
 
     /// <summary>
     /// Solo un admin puede pedir ?tenant_id= y que el servidor lo aplique. Para
-    /// un operador el selector es de solo lectura: cambiarlo no cambiaría nada
-    /// en las respuestas, y ofrecerlo sería un selector cosmético.
+    /// un operador el selector es de solo lectura: cambiarlo no cambiarÃ­a nada
+    /// en las respuestas, y ofrecerlo serÃ­a un selector cosmÃ©tico.
     /// </summary>
     public bool CanSwitchTenant => IsGlobalAdmin;
 
@@ -102,7 +102,7 @@ public sealed partial class TenantService : ObservableObject
 
     /// <summary>
     /// allow_impact_modules del tenant del token. Es lo que el servidor consulta
-    /// en POST /api/worm/deploy, con independencia del tenant seleccionado.
+    /// al pedir el listado de sesiones, con independencia del tenant seleccionado.
     /// </summary>
     public bool TokenTenantAllowsImpact =>
         Tenants.FirstOrDefault(t => t.Id == TokenTenantId)?.AllowImpactModules ?? false;
@@ -116,13 +116,13 @@ public sealed partial class TenantService : ObservableObject
     {
         get
         {
-            if (State == TenantScopeState.Faulted) return "Operación bloqueada: el tenant no se pudo resolver.";
-            if (!CanOperate) return "Operación bloqueada hasta resolver el tenant.";
+            if (State == TenantScopeState.Faulted) return "OperaciÃ³n bloqueada: el tenant no se pudo resolver.";
+            if (!CanOperate) return "OperaciÃ³n bloqueada hasta resolver el tenant.";
             if (!IsGlobalAdmin)
-                return $"Operador acotado al tenant #{TokenTenantId} del token. Cambiar de sesión no amplía alcance.";
+                return $"Operador acotado al tenant #{TokenTenantId} del token. Cambiar de sesiÃ³n no amplÃ­a alcance.";
             return IsCrossTenantViewing
-                ? $"Rol admin GLOBAL (operators.role no está particionado): puedes ver y operar en los {Tenants.Count} tenants."
-                : $"Rol admin global. Estás en #{Current!.Id}; los listados se filtran por ?tenant_id (server lo honra solo a admin).";
+                ? $"Rol admin GLOBAL (operators.role no estÃ¡ particionado): puedes ver y operar en los {Tenants.Count} tenants."
+                : $"Rol admin global. EstÃ¡s en #{Current!.Id}; los listados se filtran por ?tenant_id (server lo honra solo a admin).";
         }
     }
 
@@ -140,7 +140,7 @@ public sealed partial class TenantService : ObservableObject
     internal bool IsGeneration(long generation) => Interlocked.Read(ref _generation) == generation;
 
     /// <summary>
-    /// Fail-closed: si no se puede saber qué tenants existen, la GUI queda en
+    /// Fail-closed: si no se puede saber quÃ© tenants existen, la GUI queda en
     /// Faulted y CanOperate == false. No hay camino de "ya veremos".
     /// </summary>
     public async Task<bool> LoadAllAsync()
@@ -155,7 +155,7 @@ public sealed partial class TenantService : ObservableObject
                 Current = null;
                 _api.ActiveTenantId = null;
                 State = TenantScopeState.Unresolved;
-                FaultReason = "Cargando tenants…";
+                FaultReason = "Cargando tenantsâ€¦";
                 RaiseNotice();
             });
 
@@ -163,21 +163,21 @@ public sealed partial class TenantService : ObservableObject
 
             if (!res.Ok)
             {
-                Fault(previous, $"GET /api/tenants devolvió {res.Error?.StatusCode}: {res.ErrorMessage}. No se puede acotar el alcance, así que no se opera.");
+                Fault(previous, $"GET /api/tenants devolviÃ³ {res.Error?.StatusCode}: {res.ErrorMessage}. No se puede acotar el alcance, asÃ­ que no se opera.");
                 return false;
             }
 
             var list = res.Value?.Tenants;
             if (list is null || list.Count == 0)
             {
-                Fault(previous, "El servidor no devolvió ningún tenant ({\"tenants\": null}). Sin tenant conocido no se opera.");
+                Fault(previous, "El servidor no devolviÃ³ ningÃºn tenant ({\"tenants\": null}). Sin tenant conocido no se opera.");
                 return false;
             }
 
-            // Llenar Tenants de forma SÍNCRONA (Invoke, no BeginInvoke) para que
-            // ApplyAsync pueda buscar el tenant inmediatamente después. Usar
-            // BeginInvoke aquí causaría una condición de carrera: ApplyAsync
-            // buscaría en Tenants antes de que BeginInvoke termine de llenarlo.
+            // Llenar Tenants de forma SÃNCRONA (Invoke, no BeginInvoke) para que
+            // ApplyAsync pueda buscar el tenant inmediatamente despuÃ©s. Usar
+            // BeginInvoke aquÃ­ causarÃ­a una condiciÃ³n de carrera: ApplyAsync
+            // buscarÃ­a en Tenants antes de que BeginInvoke termine de llenarlo.
             DispatchSync(() =>
             {
                 Tenants.Clear();
@@ -201,8 +201,8 @@ public sealed partial class TenantService : ObservableObject
         }
     }
 
-    /// <summary>Cambio de tenant explícito. Serializado: una respuesta tardía de
-    /// una selección anterior no puede pintar sobre la nueva.</summary>
+    /// <summary>Cambio de tenant explÃ­cito. Serializado: una respuesta tardÃ­a de
+    /// una selecciÃ³n anterior no puede pintar sobre la nueva.</summary>
     public async Task<bool> SelectAsync(long tenantId)
     {
         if (tenantId <= 0) return false;
@@ -217,17 +217,17 @@ public sealed partial class TenantService : ObservableObject
 
             if (!CanSwitchTenant && TokenTenantId != tenantId)
             {
-                Fault(previous, $"Tu token está acotado al tenant #{TokenTenantId}; el servidor ignora ?tenant_id= para no-admin y responde 404 en los endpoints con resolveTenantScope.");
+                Fault(previous, $"Tu token estÃ¡ acotado al tenant #{TokenTenantId}; el servidor ignora ?tenant_id= para no-admin y responde 404 en los endpoints con resolveTenantScope.");
                 return false;
             }
 
             if (Tenants.All(t => t.Id != tenantId))
             {
-                Fault(previous, $"El tenant #{tenantId} no está en la lista del servidor. No se cambia de alcance.");
+                Fault(previous, $"El tenant #{tenantId} no estÃ¡ en la lista del servidor. No se cambia de alcance.");
                 return false;
             }
 
-            return await ApplyAsync(tenantId, previous, "selección").ConfigureAwait(false);
+            return await ApplyAsync(tenantId, previous, "selecciÃ³n").ConfigureAwait(false);
         }
         finally
         {
@@ -258,11 +258,11 @@ public sealed partial class TenantService : ObservableObject
         // Se verifica contra el servidor, no contra memoria: GET /sessions de
         // este tenant tiene que traer filas marcadas con este tenant_id.
         // El probe es informativo: si falla no se faulta el tenant, porque
-        // el servidor puede estar ocupado o la sesión aún no existe.
+        // el servidor puede estar ocupado o la sesiÃ³n aÃºn no existe.
         var probe = await _api.GetResultAsync<SessionsProbe>(_api.ScopedSessionsPath()).ConfigureAwait(false);
         if (!probe.Ok)
         {
-            // Probe falló: no se faulta el tenant, las sesiones se cargarán en el próximo refresh.
+            // Probe fallÃ³: no se faulta el tenant, las sesiones se cargarÃ¡n en el prÃ³ximo refresh.
         }
         else
         {
@@ -274,7 +274,7 @@ public sealed partial class TenantService : ObservableObject
                 {
                     Dispatch(() => LastScopeWarning =
                         $"{foreign.Count} de {rows.Count} filas de /sessions?tenant_id={tenantId} vienen de otros tenants " +
-                        $"({string.Join(", ", foreign.Take(3).Select(s => $"#{s.TenantId}:{s.Id}"))}). El servidor no acotó el listado.");
+                        $"({string.Join(", ", foreign.Take(3).Select(s => $"#{s.TenantId}:{s.Id}"))}). El servidor no acotÃ³ el listado.");
                 }
             }
         }
@@ -331,8 +331,8 @@ public sealed partial class TenantService : ObservableObject
             dispatcher.BeginInvoke(action);
     }
 
-    /// <summary>Síncrono: usa Invoke para que el caller espere a que termine.
-    /// Usar solo en operaciones donde no hay riesgo de reentrancia de colección
+    /// <summary>SÃ­ncrono: usa Invoke para que el caller espere a que termine.
+    /// Usar solo en operaciones donde no hay riesgo de reentrancia de colecciÃ³n
     /// (p. ej. llenado inicial de Tenants en LoadAllAsync).</summary>
     private void DispatchSync(Action action)
     {
@@ -344,7 +344,7 @@ public sealed partial class TenantService : ObservableObject
     }
 }
 
-/// <summary>Sonda mínima para confirmar que /sessions respetó el filtro.</summary>
+/// <summary>Sonda mÃ­nima para confirmar que /sessions respetÃ³ el filtro.</summary>
 public sealed class SessionsProbe
 {
     [JsonProperty("sessions")] public List<Session>? Sessions { get; set; }
