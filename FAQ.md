@@ -21,17 +21,33 @@ The **Pro** version is a commercial, paid edition aimed at professional teams an
 ## Installation & Requirements
 
 **What are the prerequisites to run the server?**
-- **Go** (version 1.18 or higher) to compile the backend.
-- **.NET SDK** (version 6.0 or higher) to compile the agent and the GUI.
-- **Supported OS**: Windows, Linux, or macOS for the server. The agent and GUI are Windows-only.
+- **Go** (version 1.21 or higher) to compile the server and the agent.
+- **.NET SDK** (version 8.0 or higher) to compile the console.
+- **Supported OS**: Windows, Linux, or macOS for the server and the agent. The
+  console is Windows-only (WPF).
+
+**The server refuses to start. What am I missing?**
+`C2_JWT_SECRET` is mandatory: set it to a random string of at least 32
+characters. The server has no built-in signing key on purpose.
 
 **Why do I get a "connection refused" error when running the agent?**
-Ensure the server is running and that the port (default 8080) is open in your server's firewall. Also, double-check that the IP address and port were correctly specified during the agent compilation.
+Ensure the server is running and that the port (default 8443) is open in your
+server's firewall. The agent takes the address at runtime, not at compile time:
+`agent.exe -s 192.168.1.100 -p 8443`.
 
 ## Usage
 
-**How do I generate an agent?**
-You must compile the `agent` project with your server parameters:
+**How do I build the agent?**
+The agent is a Go program, built from source, and it takes the server address
+at runtime:
 ```bash
 cd agent
-dotnet build -c Release -p:ServerIP=192.168.1.100 -p:ServerPort=8080
+go build -ldflags="-s -w" -o ../build/agent.exe .
+cd ../build
+./agent.exe -s 192.168.1.100 -p 8443
+```
+
+**How do I run signed scripts?**
+Put the marketplace public key that the server prints at startup in the
+`C2_SCRIPT_PUBKEY` environment variable before starting the agent. Without it
+the scripting runtime stays disabled and unsigned scripts are never executed.
