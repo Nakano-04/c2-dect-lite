@@ -13,6 +13,7 @@ vendor/
 # .NET
 bin/
 obj/
+*_wpftmp.csproj
 *.user
 *.suo
 *.cache
