@@ -5,12 +5,15 @@ go 1.24.0
 toolchain go1.24.4
 
 require (
+	c2-dect-lite/scripttrust v0.0.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/golang-jwt/jwt/v5 v5.2.0
 	github.com/google/uuid v1.5.0
 	golang.org/x/crypto v0.46.0
 	modernc.org/sqlite v1.29.6
 )
+
+replace c2-dect-lite/scripttrust => ../scripttrust
 
 require (
 	github.com/bytedance/sonic v1.9.1 // indirect

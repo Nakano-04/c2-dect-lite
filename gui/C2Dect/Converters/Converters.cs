@@ -4,7 +4,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 
-namespace C2Dect.Lite.Converters;
+namespace C2Dect.Converters;
 
 public class StatusToColorConverter : IValueConverter
 {
@@ -42,4 +42,30 @@ public class InverseBoolConverter : IValueConverter
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => value is bool b ? !b : value;
+}
+
+public class BoolToOnOffConverter : IValueConverter
+{
+    public static readonly BoolToOnOffConverter Instance = new();
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is true ? "ON" : "OFF";
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+public class BoolToRunningConverter : IValueConverter
+{
+    public static readonly BoolToRunningConverter Instance = new();
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is true ? "Active" : "Stopped";
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+public class NullToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value == null ? Visibility.Visible : Visibility.Collapsed;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotImplementedException();
 }

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "========================================"
-echo "   C2-DECT Lite Build System v1.0"
+echo "   C2-DECT Lite Build System v2.0"
 echo "========================================"
 echo
 
@@ -40,8 +40,10 @@ echo "  - server"
 echo "  - agent"
 echo
 echo "Quick start:"
-echo "  1. Start server: ./build/server"
-echo "  2. Start agent: ./build/agent -s 127.0.0.1 -p 8443"
+echo "  1. export C2_JWT_SECRET and C2_BOOTSTRAP_USER / C2_BOOTSTRAP_PASSWORD"
+echo "  2. Start server: ./build/server"
+echo "  3. Start agent:  ./build/agent -s 127.0.0.1 -p 8443"
 echo
-echo "Default credentials: admin / c2-dect"
+echo "There are no default credentials: the administrator is created on the"
+echo "first start from C2_BOOTSTRAP_USER / C2_BOOTSTRAP_PASSWORD."
 echo

@@ -1,0 +1,235 @@
+﻿<UserControl x:Class="C2Dect.Views.ScriptMarketplaceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignHeight="780" d:DesignWidth="1320"
+             Background="{StaticResource C2BgDeep}" FontFamily="Segoe UI">
+    <!-- Script Market: listar, descargar y publicar scripts Lua del C2.
+         Tema oscuro GLOBAL: todos los colores vienen de App.xaml
+         (C2Bg / C2BgDeep / C2Fg / C2Dim / C2Border / C2Hi). -->
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ==================== CABECERA ==================== -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                <TextBlock Text="SCRIPT MARKET" FontSize="22" FontWeight="Bold"
+                           Foreground="{StaticResource C2Fg}" FontFamily="Consolas"/>
+                <TextBlock Style="{StaticResource MetaText}" Margin="0,4,0,0" TextWrapping="Wrap"
+                           Text="Marketplace de paquetes firmados del C2 Lite. Endpoints: GET /api/scripts/list, GET /api/scripts/get?name=, GET /api/scripts/pubkey, POST /api/scripts/upload."/>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="{Binding ScriptCount}" Foreground="{StaticResource C2Fg}"
+                               FontSize="11" FontWeight="Bold"/>
+                    <TextBlock Text=" scripts publicados" Style="{StaticResource MetaText}" Margin="0,0,16,0"/>
+                    <TextBlock Text="{Binding ActiveSessionCount}" Foreground="{StaticResource C2Fg}"
+                               FontSize="11" FontWeight="Bold"/>
+                    <TextBlock Text=" agente(s) activo(s)" Style="{StaticResource MetaText}"/>
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button Content="REFRESCAR" Command="{Binding RefreshCommand}"
+                        Style="{StaticResource SecondaryButton}" Margin="0,0,8,0"/>
+                <Button Content="CARGAR PUBKEY" Command="{Binding LoadPubkeyCommand}"
+                        Style="{StaticResource SecondaryButton}" Margin="0,0,16,0"/>
+                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource C2Fg}"
+                           FontSize="11" VerticalAlignment="Center" MaxWidth="380" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- ==================== LISTA | FUENTE ==================== -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Lista de scripts -->
+            <Border Grid.Column="0" Background="{StaticResource C2Bg}"
+                    BorderBrush="{StaticResource C2Border}" BorderThickness="1" CornerRadius="6" Padding="10">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="SCRIPTS PUBLICADOS" Style="{StaticResource SectionTitle}"/>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource MetaText}" Margin="0,0,0,6"
+                               Text="Selecciona uno y pulsa CARGAR SCRIPT para ver su manifiesto."/>
+
+                    <ListView ItemsSource="{Binding Scripts}"
+                              SelectedValuePath="Name"
+                              SelectedValue="{Binding SelectedScriptName, Mode=TwoWay}"
+                              Background="{StaticResource C2BgDeep}"
+                              Foreground="{StaticResource C2Fg}"
+                              BorderBrush="{StaticResource C2Border}" BorderThickness="1"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="Foreground" Value="{StaticResource C2Fg}"/>
+                                <Setter Property="Padding" Value="4,3"/>
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource C2Fg}"
+                                           FontFamily="Consolas" FontSize="11"/>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <Button DockPanel.Dock="Bottom" Content="CARGAR SCRIPT" Command="{Binding LoadScriptCommand}"
+                            Style="{StaticResource SecondaryButton}" Margin="0,8,0,0"/>
+                </DockPanel>
+            </Border>
+
+            <!-- Panel derecho: source + pubkey -->
+            <Border Grid.Column="2" Background="{StaticResource C2Bg}"
+                    BorderBrush="{StaticResource C2Border}" BorderThickness="1" CornerRadius="6" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="MANIFIESTO DEL PAQUETE" Style="{StaticResource SectionTitle}"/>
+                    <TextBlock Grid.Row="1" Text="{Binding SelectedScriptName}" Foreground="{StaticResource C2Fg}"
+                               FontFamily="Consolas" FontSize="11" Margin="0,0,0,6"/>
+
+                    <TextBox Grid.Row="2" Text="{Binding ScriptSource, Mode=OneWay}"
+                             AcceptsReturn="True" IsReadOnly="True"
+                             FontFamily="Consolas" FontSize="11"
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="COPIAR SOURCE" Command="{Binding CopySourceCommand}"
+                                Style="{StaticResource SecondaryButton}" Margin="0,0,12,0"/>
+                        <TextBlock Text="Source en solo lectura: el portapapeles es la via para llevarselo al agente."
+                                   Style="{StaticResource MetaText}" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="4" Text="CLAVE DE FIRMA (GET /api/scripts/pubkey)"
+                               Style="{StaticResource SectionTitle}" Margin="0,12,0,4"/>
+                    <TextBox Grid.Row="5" Text="{Binding Pubkey, Mode=OneWay}" IsReadOnly="True"
+                             FontFamily="Consolas" FontSize="10" Padding="6,4"/>
+                    <TextBlock Grid.Row="6" Text="{Binding PubkeyStatus}" Style="{StaticResource MetaText}"
+                               Margin="0,4,0,0" TextWrapping="Wrap"/>
+
+                    <!-- Estado de confianza del script: lo que el servidor Go
+                         aplica al encolar (server/api/script_trust.go). -->
+                    <Border Grid.Row="7" Background="{StaticResource C2BgDeep}" BorderBrush="{StaticResource C2Border}"
+                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,12,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="CONFIANZA DEL PAQUETE"
+                                           Style="{StaticResource SectionTitle}"/>
+                                <Button Grid.Column="1" Content="VER CONFIANZA" Command="{Binding LoadTrustCommand}"
+                                        Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"/>
+                            </Grid>
+                            <TextBlock Text="{Binding TrustVerdict}" FontFamily="Consolas" FontSize="13"
+                                       FontWeight="Bold" Margin="0,6,0,0" TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource C2Fg}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding TrustVerdict}" Value="FIRMADO">
+                                                <Setter Property="Foreground" Value="#4caf50"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding TrustVerdict}" Value="SIN_FIRMA">
+                                                <Setter Property="Foreground" Value="#ffc107"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding TrustVerdict}" Value="FUERA_DE_SCOPE">
+                                                <Setter Property="Foreground" Value="#f44336"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding TrustVerdict}" Value="TENANT_INCORRECTO">
+                                                <Setter Property="Foreground" Value="#f44336"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Style="{StaticResource MetaText}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                       Text="Alcance: '/api/scripts/get' + '/api/scripts/pubkey' (claves del tenant del llamante)."/>
+                            <TextBlock Style="{StaticResource MetaText}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                       Text="OJO: la GUI NO verifica la firma criptograficamente. 'FIRMADO' significa que el servidor adjunto una firma; el veredicto de tenant se basa en el kid que devuelve el servidor."/>
+                            <TextBlock Text="{Binding TrustScope}" Foreground="{StaticResource C2Fg}"
+                                       FontFamily="Consolas" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding TrustKid}" Foreground="{StaticResource C2Fg}"
+                                       FontFamily="Consolas" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding TrustReason}" Style="{StaticResource MetaText}"
+                                       Margin="0,4,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ==================== SUBIDA ==================== -->
+        <Border Grid.Row="4" Background="{StaticResource C2Bg}"
+                BorderBrush="{StaticResource C2Border}" BorderThickness="1" CornerRadius="6" Padding="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="PUBLICAR SCRIPT (POST /api/scripts/upload)"
+                           Style="{StaticResource SectionTitle}"/>
+
+                <TextBlock Grid.Row="1" Style="{StaticResource MetaText}" Margin="0,0,0,8" TextWrapping="Wrap"
+                           Text="El alcance (scope) NO viaja en el JSON: el servidor lo deduce de la cabecera '-- scope:' del propio source y devuelve 400 si no la encuentra. Si el source no la declara, la GUI antepone la cabecera con el alcance indicado abajo. Ademas, los scripts SIN firma solo se aceptan si declaran alcance 'lab-only' (o si el tenant tiene claves de confianza). Si la subida falla, se muestra el error exacto del servidor."/>
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
+                    <TextBlock Text="Nombre:" Style="{StaticResource MetaText}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding UploadName, UpdateSourceTrigger=PropertyChanged}"
+                             Width="220" Padding="6,4" Margin="0,0,16,0"/>
+
+                    <TextBlock Text="Scope:" Style="{StaticResource MetaText}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding UploadScope, UpdateSourceTrigger=PropertyChanged}"
+                             Width="170" Padding="6,4" Margin="0,0,16,0"/>
+
+                    <Button Content="PUBLICAR" Command="{Binding UploadCommand}"
+                            Style="{StaticResource PrimaryButton}" Margin="0,0,16,0"/>
+
+                    <TextBlock Text="{Binding ScopeNote}" Style="{StaticResource MetaText}"
+                               VerticalAlignment="Center" MaxWidth="640" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <TextBox Grid.Row="3" Text="{Binding UploadSource, UpdateSourceTrigger=PropertyChanged}"
+                         AcceptsReturn="True" Height="130" FontFamily="Consolas" FontSize="11"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+
+                <Border Grid.Row="4" Background="{StaticResource C2BgDeep}" BorderBrush="{StaticResource C2Border}"
+                        BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,8,0,0"
+                        Visibility="{Binding HasUploadError, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="ERROR DEL SERVIDOR" Style="{StaticResource SectionTitle}" Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding UploadError}" Foreground="{StaticResource C2Fg}"
+                                   FontFamily="Consolas" FontSize="11" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

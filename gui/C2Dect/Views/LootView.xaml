@@ -1,0 +1,65 @@
+<UserControl x:Class="C2Dect.Views.LootView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#0c0e14" FontFamily="Segoe UI">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <TextBlock Text="LOOT" FontSize="22" FontWeight="Bold"
+                       Foreground="#ffeb3b" FontFamily="Consolas"/>
+            <Border Background="#1a1508" BorderBrush="#d4a01740" BorderThickness="1" CornerRadius="4"
+                    Padding="8,3" Margin="12,4,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding ScopeNote}" Foreground="#d4a017" FontSize="11"/>
+            </Border>
+        </StackPanel>
+
+        <!-- Filter -->
+        <Border Grid.Row="2" Background="#12151c" BorderBrush="#1e2330" BorderThickness="1" CornerRadius="8" Padding="10">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Filter by session:" Foreground="#666" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Text="{Binding FilterSession, UpdateSourceTrigger=PropertyChanged}" Background="#1a1e28"
+                         Foreground="#e0e0e0" BorderBrush="#1e2330" BorderThickness="1"
+                         Padding="8,4" Width="200" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <Button Content="LOAD" Command="{Binding LoadLootCommand}"
+                        Background="#1a1508" Foreground="#d4a017" BorderBrush="#d4a01740"
+                        BorderThickness="1" Padding="14,6" FontWeight="Bold"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Loot Table -->
+        <Border Grid.Row="4" Background="#12151c" BorderBrush="#1e2330" BorderThickness="1" CornerRadius="8" Padding="12">
+            <DataGrid ItemsSource="{Binding LootItems}" SelectedItem="{Binding SelectedLoot}"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      Background="#12151c" Foreground="#c0c8d8" BorderThickness="0"
+                      RowBackground="#12151c" AlternatingRowBackground="#11141c"
+                      HeadersVisibility="Column" SelectionMode="Single" CanUserAddRows="False"
+                      GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#1a1e28">
+                <DataGrid.ColumnHeaderStyle>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="#080a10"/>
+                        <Setter Property="Foreground" Value="#5a6070"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Setter Property="FontSize" Value="11"/>
+                        <Setter Property="Padding" Value="10,8"/>
+                    </Style>
+                </DataGrid.ColumnHeaderStyle>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>
+                    <DataGridTextColumn Header="Session" Binding="{Binding SessionId}" Width="150"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="80"/>
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200"/>
+                    <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="200"/>
+                    <DataGridTextColumn Header="Hash" Binding="{Binding Hash}" Width="120"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding CreatedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}" Width="130"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>

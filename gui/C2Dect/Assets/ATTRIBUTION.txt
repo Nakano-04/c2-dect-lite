@@ -1,0 +1,35 @@
+Iconos vendorizados (descarga manual, uso offline, sin hotlink).
+Solo lab interno. Licencias verificadas en la pagina de origen de cada fichero.
+
+Los .png de este directorio son RASTERIZACIONES de los .svg de abajo, no los
+originales. Tamano real de los PNG: 250 px de ancho (no 128 px).
+CC BY-SA y CC BY obligan a declarar que la obra fue modificada.
+
+- fw.png      <- https://commons.wikimedia.org/wiki/File:Firewall_(networking).png
+                Public domain (PD-self), autor Luis F. Gonzalez.
+                VERIFICADO. El original es 485x226; el PNG local es 250x255, asi
+                que esta recortado/alterado respecto al original.
+
+- win.png     <- https://commons.wikimedia.org/wiki/File:Gnome-computer.svg
+                Tema de iconos GNOME.
+                LICENCIA REAL: CC BY-SA 3.0 US (obra) + LGPL-3.0-o-later (codigo).
+                NO es GPL-2.0+. SVG original 48x48.
+
+- server.png  <- https://commons.wikimedia.org/wiki/Special:FilePath/Application_Server.svg
+                Tema de iconos GNOME: CC BY-SA 3.0 US + LGPL-3.0-o-later.
+
+- out.png     <- https://commons.wikimedia.org/wiki/Special:FilePath/Gnome-network-offline.svg
+                Tema de iconos GNOME: CC BY-SA 3.0 US + LGPL-3.0-o-later.
+
+- lin.png     <- https://commons.wikimedia.org/wiki/Special:FilePath/Workstation.svg
+                Tema de iconos GNOME: CC BY-SA 3.0 US + LGPL-3.0-o-later.
+
+- android.png <- https://commons.wikimedia.org/wiki/Special:FilePath/Android_robot.svg
+                CC BY 3.0 Unported, Google Inc. (diseño de Irina Blok).
+                ATENCION: Commons lo marca "With trademark". El robot Android es
+                marca registrada de Google. Uso restringido a lab; no redistribute.
+
+Si falta un PNG, el mapa usa icono emoji integrado (sin red).
+
+Nota: las atribuciones de server/out/lin no se reopen una por una; comparten la
+licencia del tema GNOME indicada arriba. Verificar si cambia el juego de iconos.

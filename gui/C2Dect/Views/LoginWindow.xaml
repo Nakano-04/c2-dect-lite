@@ -1,10 +1,13 @@
-<Window x:Class="C2Dect.Lite.Views.LoginWindow"
+﻿<Window x:Class="C2Dect.Views.LoginWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="C2-DECT Lite Login" Height="480" Width="420"
+        Title="C2-DECT Login" Height="560" Width="480"
+        MinHeight="420" MinWidth="360"
+        Icon="../Assets/c2-icon.ico"
         WindowStartupLocation="CenterScreen"
         Background="#0c0e14"
-        ResizeMode="NoResize"
+        ResizeMode="CanResizeWithGrip"
+        SizeToContent="Manual"
         FontFamily="Segoe UI">
     <Window.Resources>
         <Style x:Key="SectionLabel" TargetType="TextBlock">
@@ -60,13 +63,17 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="8"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
+                <RowDefinition Height="8"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="8"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <!-- Logo -->
-            <TextBlock Grid.Row="0" Text="C2-DECT LITE" FontSize="34" FontWeight="Bold"
+            <TextBlock Grid.Row="0" Text="C2-DECT" FontSize="34" FontWeight="Bold"
                        Foreground="#00e676" HorizontalAlignment="Center"
                        FontFamily="Consolas"/>
 
@@ -75,21 +82,21 @@
                     HorizontalAlignment="Center" Width="200"/>
 
             <!-- Subtitle -->
-            <TextBlock Grid.Row="3" Text="Open Source C2 Framework" FontSize="12"
+            <TextBlock Grid.Row="4" Text="Operator Console Lite 2.0" FontSize="12"
                        Foreground="#5a6070" HorizontalAlignment="Center"
                        Margin="0,0,0,4"/>
 
             <!-- Server URL -->
-            <StackPanel Grid.Row="5">
+            <StackPanel Grid.Row="6">
                 <TextBlock Text="SERVER" Style="{StaticResource SectionLabel}"
                            Foreground="#5a6070" FontSize="10" FontWeight="SemiBold"
                            Margin="0,0,0,6"/>
                 <TextBox x:Name="ServerBox" Style="{StaticResource LoginInput}"
-                         Text="http://127.0.0.1:8443"/>
+                         Text="https://127.0.0.1:8443"/>
             </StackPanel>
 
             <!-- Username -->
-            <StackPanel Grid.Row="7">
+            <StackPanel Grid.Row="8">
                 <TextBlock Text="USERNAME" Style="{StaticResource SectionLabel}"
                            Foreground="#5a6070" FontSize="10" FontWeight="SemiBold"
                            Margin="0,0,0,6"/>
@@ -97,7 +104,7 @@
             </StackPanel>
 
             <!-- Password -->
-            <StackPanel Grid.Row="9">
+            <StackPanel Grid.Row="10">
                 <TextBlock Text="PASSWORD" Style="{StaticResource SectionLabel}"
                            Foreground="#5a6070" FontSize="10" FontWeight="SemiBold"
                            Margin="0,0,0,6"/>
@@ -109,8 +116,28 @@
                 </Border>
             </StackPanel>
 
+            <!-- TOTP (6 digits, optional) -->
+            <StackPanel Grid.Row="12">
+                <TextBlock Text="TOTP (if 2FA enabled)" Style="{StaticResource SectionLabel}"
+                           Foreground="#5a6070" FontSize="10" FontWeight="SemiBold"
+                           Margin="0,0,0,6"/>
+                <TextBox x:Name="TotpBox" Style="{StaticResource LoginInput}" MaxLength="6"
+                         ToolTip="6-digit code from authenticator app (leave empty if 2FA not enabled)"/>
+            </StackPanel>
+
+            <!-- Lab TLS -->
+            <StackPanel Grid.Row="13" Orientation="Horizontal" Margin="0,2,0,8">
+                <CheckBox x:Name="InsecureBox" Content="Allow self-signed cert (lab only)" IsChecked="True"
+                          Foreground="#5a6070" FontSize="11"/>
+            </StackPanel>
+
+            <!-- Start server in background -->
+            <CheckBox Grid.Row="14" x:Name="BackgroundServerCheck" Content="Iniciar servidor en 2Âº plano"
+                      Foreground="#5a6070" FontSize="11" Margin="0,8,0,6"
+                      Checked="BackgroundServerCheck_Checked" Unchecked="BackgroundServerCheck_Unchecked"/>
+
             <!-- Login Button -->
-            <Button Grid.Row="10" Content="LOGIN" HorizontalAlignment="Stretch"
+            <Button Grid.Row="15" x:Name="LoginBtn" Content="LOGIN" IsDefault="True" HorizontalAlignment="Stretch"
                     Height="46" Click="LoginButton_Click" Margin="0,4,0,0"
                     FontSize="14" FontWeight="Bold" FontFamily="Consolas"
                     Cursor="Hand">
@@ -139,15 +166,16 @@
             </Button>
 
             <!-- Status -->
-            <TextBlock Grid.Row="11" x:Name="StatusText" HorizontalAlignment="Center"
-                       Foreground="#ff5252" FontSize="12" Margin="0,10,0,0"/>
+            <TextBlock Grid.Row="16" x:Name="StatusText" HorizontalAlignment="Center" TextAlignment="Center"
+                       Foreground="#ff5252" FontSize="12" Margin="0,10,0,0" TextWrapping="Wrap"/>
         </Grid>
 
         <!-- Footer -->
         <Border Grid.Row="1" Background="#0f1118" Padding="0,10"
                 BorderBrush="#1a1e28" BorderThickness="0,1,0,0">
-            <TextBlock Text="C2-DECT Lite v1.0 - Open Source" HorizontalAlignment="Center"
+            <TextBlock Text="C2-DECT Lite 2.0 - Open Source" HorizontalAlignment="Center"
                        Foreground="#2a2e3a" FontSize="10" FontFamily="Consolas"/>
         </Border>
     </Grid>
 </Window>
+

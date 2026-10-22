@@ -1,0 +1,117 @@
+<UserControl x:Class="C2Dect.Views.ProfilesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#0c0e14" FontFamily="Segoe UI">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="PERFILES MALLEABLE" FontSize="22" FontWeight="Bold" Foreground="#d4a017" FontFamily="Consolas"/>
+            <TextBlock Text="Plantillas de tráfico que usa el C2 (GET/POST /api/profiles). Un listener referencia un perfil por nombre."
+                       Foreground="#5a6070" FontSize="11" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <Border Grid.Row="2" Background="#12151c" BorderBrush="#1e2330" BorderThickness="1" CornerRadius="8" Padding="12">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                    <Button Content="REFRESCAR" Command="{Binding LoadProfilesCommand}"
+                            Background="#161a24" Foreground="#888" BorderBrush="#252a36"
+                            BorderThickness="1" Padding="12,6" FontSize="11"/>
+                    <TextBlock Text="{Binding StatusText}" Foreground="#8aa0ff" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <DataGrid ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}"
+                          AutoGenerateColumns="False" IsReadOnly="True"
+                          Background="#12151c" Foreground="#c0c8d8" BorderThickness="0"
+                          RowBackground="#12151c" AlternatingRowBackground="#11141c"
+                          HeadersVisibility="Column" SelectionMode="Single" CanUserAddRows="False"
+                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#1a1e28">
+                    <DataGrid.ColumnHeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="#080a10"/>
+                            <Setter Property="Foreground" Value="#5a6070"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="Padding" Value="10,8"/>
+                        </Style>
+                    </DataGrid.ColumnHeaderStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="160"/>
+                        <DataGridTextColumn Header="Method" Binding="{Binding Method}" Width="70"/>
+                        <DataGridTextColumn Header="Content-Type" Binding="{Binding ContentType}" Width="130"/>
+                        <DataGridTextColumn Header="Encode" Binding="{Binding EncodeMode}" Width="90"/>
+                        <DataGridTextColumn Header="Jitter" Binding="{Binding Jitter}" Width="60"/>
+                        <DataGridTextColumn Header="Sleep" Binding="{Binding DefaultSleep}" Width="60"/>
+                        <DataGridTextColumn Header="URIs" Binding="{Binding URIs.Count}" Width="55"/>
+                        <DataGridTextColumn Header="UA" Binding="{Binding UserAgents.Count}" Width="45"/>
+                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+
+        <Border Grid.Row="4" Background="#12151c" BorderBrush="#1e2330" BorderThickness="1" CornerRadius="8" Padding="14">
+            <StackPanel>
+                <TextBlock Text="NUEVO PERFIL (POST /api/profiles - solo role=admin)" Foreground="#5a6070" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <WrapPanel>
+                    <TextBlock Text="Nombre:" Foreground="#666" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" Background="#1a1e28"
+                             Foreground="#e0e0e0" BorderBrush="#1e2330" BorderThickness="1"
+                             Padding="8,4" Width="140" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                    <TextBlock Text="Método:" Foreground="#666" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <ComboBox ItemsSource="{Binding Methods}" SelectedItem="{Binding NewMethod}"
+                              Background="#1a1e28" Foreground="#e0e0e0" BorderBrush="#1e2330"
+                              BorderThickness="1" Width="80" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                    <TextBlock Text="Content-Type:" Foreground="#666" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding NewContentType, UpdateSourceTrigger=PropertyChanged}" Background="#1a1e28"
+                             Foreground="#e0e0e0" BorderBrush="#1e2330" BorderThickness="1"
+                             Padding="8,4" Width="140" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                    <TextBlock Text="Encode:" Foreground="#666" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <ComboBox ItemsSource="{Binding EncodeModes}" SelectedItem="{Binding NewEncodeMode}"
+                              Background="#1a1e28" Foreground="#e0e0e0" BorderBrush="#1e2330"
+                              BorderThickness="1" Width="110" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                    <TextBlock Text="Jitter:" Foreground="#666" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding NewJitter, UpdateSourceTrigger=PropertyChanged}" Background="#1a1e28"
+                             Foreground="#e0e0e0" BorderBrush="#1e2330" BorderThickness="1"
+                             Padding="8,4" Width="50" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                    <TextBlock Text="Sleep:" Foreground="#666" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding NewDefaultSleep, UpdateSourceTrigger=PropertyChanged}" Background="#1a1e28"
+                             Foreground="#e0e0e0" BorderBrush="#1e2330" BorderThickness="1"
+                             Padding="8,4" Width="50" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                </WrapPanel>
+
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <TextBlock Text="URIs:" Foreground="#666" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding NewUris, UpdateSourceTrigger=PropertyChanged}" Background="#1a1e28"
+                             Foreground="#e0e0e0" BorderBrush="#1e2330" BorderThickness="1"
+                             Padding="8,4" Width="240" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Text="User-Agents:" Foreground="#666" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding NewUserAgents, UpdateSourceTrigger=PropertyChanged}" Background="#1a1e28"
+                             Foreground="#e0e0e0" BorderBrush="#1e2330" BorderThickness="1"
+                             Padding="8,4" Width="320" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <TextBlock Text="Post template:" Foreground="#666" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding NewPostTemplate, UpdateSourceTrigger=PropertyChanged}" Background="#1a1e28"
+                             Foreground="#e0e0e0" BorderBrush="#1e2330" BorderThickness="1"
+                             Padding="8,4" Width="420" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <Button Content="CREAR PERFIL" Command="{Binding CreateProfileCommand}"
+                            Background="#0a2e1a" Foreground="#00e676" BorderBrush="#00e67640"
+                            BorderThickness="1" Padding="14,6" FontWeight="Bold"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo    C2-DECT Lite Build System v1.0
+echo    C2-DECT Lite Build System v2.0
 echo ========================================
 echo.
 
@@ -54,10 +54,12 @@ echo   - agent.exe
 echo   - gui\C2Dect\bin\Release\net8.0-windows\C2Dect-Lite.exe
 echo.
 echo Quick start:
-echo   1. Start server: build\server.exe
-echo   2. Start agent: build\agent.exe -s 127.0.0.1 -p 8443
-echo   3. Open GUI: gui\C2Dect\bin\Release\net8.0-windows\C2Dect-Lite.exe
+echo   1. set C2_JWT_SECRET and C2_BOOTSTRAP_USER / C2_BOOTSTRAP_PASSWORD
+echo   2. Start server: build\server.exe
+echo   3. Start agent:  build\agent.exe -s 127.0.0.1 -p 8443
+echo   4. Open GUI:     gui\C2Dect\bin\Release\net8.0-windows\C2Dect-Lite.exe
 echo.
-echo Default credentials: admin / c2-dect
+echo There are no default credentials: the administrator is created on the
+echo first start from C2_BOOTSTRAP_USER / C2_BOOTSTRAP_PASSWORD.
 echo.
 pause

@@ -1,0 +1,154 @@
+<UserControl x:Class="C2Dect.Views.AdminView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#0c0e14" FontFamily="Segoe UI">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <TextBlock Text="GOVERNANCE" FontSize="22" FontWeight="Bold"
+                       Foreground="#00e676" FontFamily="Consolas"/>
+            <Border Background="#0a2e1a" BorderBrush="#00e67640" BorderThickness="1" CornerRadius="4"
+                    Padding="8,3" Margin="12,4,0,0" VerticalAlignment="Center">
+                <TextBlock Text="Tenants, operadores, tokens de arranque y auditoria" Foreground="#00e676" FontSize="11"/>
+            </Border>
+        </StackPanel>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Tenants -->
+            <Border Grid.Column="0" Background="#12151c" BorderBrush="#1e2330" BorderThickness="1" CornerRadius="8" Padding="12">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="TENANTS" Foreground="#5a6070" FontSize="10" FontWeight="Bold" Margin="0,0,0,8"/>
+                    <DataGrid ItemsSource="{Binding Tenants}" SelectedItem="{Binding SelectedTenant}"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              Background="#12151c" Foreground="#c0c8d8" BorderThickness="0"
+                              RowBackground="#12151c" AlternatingRowBackground="#11141c"
+                              HeadersVisibility="Column" SelectionMode="Single" CanUserAddRows="False"
+                              GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#1a1e28">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#080a10"/>
+                                <Setter Property="Foreground" Value="#5a6070"/>
+                                <Setter Property="FontSize" Value="11"/>
+                                <Setter Property="Padding" Value="8,6"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="50"/>
+                            <DataGridTextColumn Header="Nombre" Binding="{Binding Name}" Width="*"/>
+                            <DataGridTextColumn Header="Impact" Binding="{Binding ImpactText}" Width="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                        <TextBox Text="{Binding NewTenantName}" Background="#1a1e28" Foreground="#e0e0e0"
+                                 BorderBrush="#1e2330" BorderThickness="1" Padding="8,5" FontSize="12" Margin="0,0,0,6"/>
+                        <TextBox Text="{Binding NewTenantDescription}" Background="#1a1e28" Foreground="#e0e0e0"
+                                 BorderBrush="#1e2330" BorderThickness="1" Padding="8,5" FontSize="12" Margin="0,0,0,8"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="CREAR TENANT" Command="{Binding CreateTenantCommand}"
+                                    Background="#0a2e1a" Foreground="#00e676" BorderBrush="#00e67640"
+                                    BorderThickness="1" Padding="12,6" FontWeight="Bold" Margin="0,0,6,0"/>
+                            <Button Content="BORRAR" Command="{Binding DeleteTenantCommand}"
+                                    Background="#1a0d0d" Foreground="#ff5252" BorderBrush="#ff525240"
+                                    BorderThickness="1" Padding="12,6"/>
+                        </StackPanel>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- Operadores -->
+            <Border Grid.Column="2" Background="#12151c" BorderBrush="#1e2330" BorderThickness="1" CornerRadius="8" Padding="12">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="OPERADORES" Foreground="#5a6070" FontSize="10" FontWeight="Bold" Margin="0,0,0,8"/>
+                    <DataGrid ItemsSource="{Binding Operators}"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              Background="#12151c" Foreground="#c0c8d8" BorderThickness="0"
+                              RowBackground="#12151c" AlternatingRowBackground="#11141c"
+                              HeadersVisibility="Column" CanUserAddRows="False"
+                              GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#1a1e28">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#080a10"/>
+                                <Setter Property="Foreground" Value="#5a6070"/>
+                                <Setter Property="FontSize" Value="11"/>
+                                <Setter Property="Padding" Value="8,6"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Usuario" Binding="{Binding Username}" Width="*"/>
+                            <DataGridTextColumn Header="Rol" Binding="{Binding Role}" Width="90"/>
+                            <DataGridTextColumn Header="Tenant" Binding="{Binding TenantId}" Width="60"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                        <TextBox Text="{Binding NewUserName}" Background="#1a1e28" Foreground="#e0e0e0"
+                                 BorderBrush="#1e2330" BorderThickness="1" Padding="8,5" FontSize="12" Margin="0,0,0,6"/>
+                        <TextBox Text="{Binding NewUserPassword}" Background="#1a1e28" Foreground="#e0e0e0"
+                                 BorderBrush="#1e2330" BorderThickness="1" Padding="8,5" FontSize="12" Margin="0,0,0,6"/>
+                        <ComboBox x:Name="RoleBox" ItemsSource="{Binding Roles}" SelectedItem="{Binding NewUserRole}"
+                                  Background="#1a1e28" Foreground="#e0e0e0" BorderBrush="#1e2330"
+                                  BorderThickness="1" Padding="8,4" FontSize="12" Margin="0,0,0,8"/>
+                        <Button Content="CREAR OPERADOR" Command="{Binding CreateOperatorCommand}"
+                                Background="#0a2e1a" Foreground="#00e676" BorderBrush="#00e67640"
+                                BorderThickness="1" Padding="12,6" FontWeight="Bold" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- Tokens -->
+            <Border Grid.Column="4" Background="#12151c" BorderBrush="#1e2330" BorderThickness="1" CornerRadius="8" Padding="12">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="TOKENS DE ARRANQUE" Foreground="#5a6070" FontSize="10" FontWeight="Bold" Margin="0,0,0,4"/>
+                    <TextBlock DockPanel.Dock="Top" Text="Un token liga un agente nuevo a un tenant. Se muestra una sola vez."
+                               Foreground="#3a3f50" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                    <DataGrid ItemsSource="{Binding Tokens}"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              Background="#12151c" Foreground="#c0c8d8" BorderThickness="0"
+                              RowBackground="#12151c" AlternatingRowBackground="#11141c"
+                              HeadersVisibility="Column" CanUserAddRows="False"
+                              GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#1a1e28">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#080a10"/>
+                                <Setter Property="Foreground" Value="#5a6070"/>
+                                <Setter Property="FontSize" Value="11"/>
+                                <Setter Property="Padding" Value="8,6"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Etiqueta" Binding="{Binding label}" Width="*"/>
+                            <DataGridTextColumn Header="Caduca" Binding="{Binding expires_at}" Width="150"/>
+                            <DataGridTextColumn Header="Revocado" Binding="{Binding revoked}" Width="70"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                        <TextBox Text="{Binding TokenLabel}" Background="#1a1e28" Foreground="#e0e0e0"
+                                 BorderBrush="#1e2330" BorderThickness="1" Padding="8,5" FontSize="12" Margin="0,0,0,6"/>
+                        <Button Content="EMITIR TOKEN" Command="{Binding IssueTokenCommand}"
+                                Background="#0a2e1a" Foreground="#00e676" BorderBrush="#00e67640"
+                                BorderThickness="1" Padding="12,6" FontWeight="Bold" HorizontalAlignment="Left"
+                                Margin="0,0,0,8"/>
+                        <TextBox Text="{Binding IssuedToken}" IsReadOnly="True" Background="#0a0c12" Foreground="#00e676"
+                                 BorderBrush="#1e2330" BorderThickness="1" Padding="8,5" FontSize="10"
+                                 FontFamily="Consolas" TextWrapping="Wrap" MinHeight="54"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <TextBlock Grid.Row="3" Text="{Binding StatusText}" Foreground="#5a6070" FontSize="11" Margin="0,10,0,0"/>
+    </Grid>
+</UserControl>

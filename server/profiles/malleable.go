@@ -1,29 +1,63 @@
+// Package profiles implements the traffic profiles applied to the agent
+// transport: request path, user agent, headers and beacon timing.
 package profiles
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 )
 
+// randomHex returns a random hex string of n bytes.
+func randomHex(n int) string {
+	buf := make([]byte, n)
+	if _, err := rand.Read(buf); err != nil {
+		return "00000000"
+	}
+	return hex.EncodeToString(buf)
+}
+
+// MalleableProfile describes how the agent shapes its traffic.
 type MalleableProfile struct {
+	Name         string            `json:"name"`
+	Description  string            `json:"description"`
+	Method       string            `json:"method"` // GET or POST
+	URIs         []string          `json:"uris"`
+	UserAgents   []string          `json:"user_agents"`
+	Headers      map[string]string `json:"headers"`
+	Cookies      map[string]string `json:"cookies"`
+	PostData     string            `json:"post_data"`
+	Prepend      string            `json:"prepend"`
+	Append       string            `json:"append"`
+	Jitter       int               `json:"jitter"` // percentage
+	DefaultSleep int               `json:"default_sleep"`
+	ContentType  string            `json:"content_type"`
+	EncodeMode   string            `json:"encode_mode"` // json or base64
+	KillDate     string            `json:"kill_date"`   // YYYY-MM-DD, optional
+}
+
+// AgentProfile is the projection of a traffic profile handed to the agents.
+type AgentProfile struct {
 	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Method      string            `json:"method"` // GET, POST
+	Method      string            `json:"method"`
 	URIs        []string          `json:"uris"`
 	UserAgents  []string          `json:"user_agents"`
 	Headers     map[string]string `json:"headers"`
 	Cookies     map[string]string `json:"cookies"`
-	PostData    string            `json:"post_data"` // template
+	ContentType string            `json:"content_type"`
+	EncodeMode  string            `json:"encode_mode"`
 	Prepend     string            `json:"prepend"`
 	Append      string            `json:"append"`
-	Jitter      int               `json:"jitter"` // percentage
-	DefaultSleep int              `json:"default_sleep"`
-	ContentType string            `json:"content_type"`
-	EncodeMode  string            `json:"encode_mode"` // base64, json
 }
 
+// ProfileManager stores the profiles of the server.
 type ProfileManager struct {
 	profiles map[string]*MalleableProfile
 	current  string
@@ -44,7 +78,7 @@ func NewProfileManager(dir string) *ProfileManager {
 func (pm *ProfileManager) loadDefaults() {
 	pm.profiles["browser"] = &MalleableProfile{
 		Name:        "browser",
-		Description: "Mimics normal browser traffic",
+		Description: "Shaped like a regular browser request",
 		Method:      "POST",
 		URIs:        []string{"/api/update", "/login", "/dashboard/data"},
 		UserAgents: []string{
@@ -55,16 +89,11 @@ func (pm *ProfileManager) loadDefaults() {
 		Headers: map[string]string{
 			"Accept":          "application/json, text/plain, */*",
 			"Accept-Language": "en-US,en;q=0.9",
-			"Accept-Encoding": "gzip, deflate, br",
 			"Connection":      "keep-alive",
 			"Referer":         "https://app.example.com/dashboard",
 		},
-		Cookies: map[string]string{
-			"session": "{{random}}",
-		},
+		Cookies:     map[string]string{"session": "{{random}}"},
 		PostData:    `{"data":"{{payload}}","timestamp":{{timestamp}},"nonce":"{{nonce}}"}`,
-		Prepend:     "",
-		Append:      "",
 		Jitter:      30,
 		DefaultSleep: 10,
 		ContentType: "application/json",
@@ -73,7 +102,7 @@ func (pm *ProfileManager) loadDefaults() {
 
 	pm.profiles["api"] = &MalleableProfile{
 		Name:        "api",
-		Description: "Mimics REST API traffic",
+		Description: "Shaped like a regular REST API call",
 		Method:      "POST",
 		URIs:        []string{"/v1/telemetry", "/api/v2/events"},
 		UserAgents: []string{
@@ -86,25 +115,20 @@ func (pm *ProfileManager) loadDefaults() {
 			"Content-Type": "application/json",
 			"X-Request-ID": "{{uuid}}",
 		},
-		PostData:    `{"events":[{{payload}}],"meta":{"source":"client","version":"1.0"}}`,
-		Jitter:      20,
+		PostData:     `{"events":[{{payload}}],"meta":{"source":"client","version":"1.0"}}`,
+		Jitter:       20,
 		DefaultSleep: 15,
-		ContentType: "application/json",
-		EncodeMode:  "json",
+		ContentType:  "application/json",
+		EncodeMode:   "json",
 	}
 
 	pm.profiles["sleep"] = &MalleableProfile{
 		Name:        "sleep",
-		Description: "Minimal traffic for long sleep intervals",
+		Description: "Minimal traffic for long beacon intervals",
 		Method:      "GET",
 		URIs:        []string{"/health", "/ping"},
-		UserAgents: []string{
-			"curl/7.88.1",
-			"Wget/1.21.3",
-		},
-		Headers: map[string]string{
-			"Accept": "*/*",
-		},
+		UserAgents:  []string{"curl/7.88.1", "Wget/1.21.3"},
+		Headers:     map[string]string{"Accept": "*/*"},
 		Jitter:      50,
 		DefaultSleep: 60,
 		EncodeMode:  "base64",
@@ -117,7 +141,7 @@ func (pm *ProfileManager) loadFromDisk() {
 	if pm.dir == "" {
 		return
 	}
-	os.MkdirAll(pm.dir, 0755)
+	_ = os.MkdirAll(pm.dir, 0755)
 	entries, err := os.ReadDir(pm.dir)
 	if err != nil {
 		return
@@ -134,10 +158,14 @@ func (pm *ProfileManager) loadFromDisk() {
 		if err := json.Unmarshal(data, &p); err != nil {
 			continue
 		}
+		if p.Name == "" {
+			continue
+		}
 		pm.profiles[p.Name] = &p
 	}
 }
 
+// GetDefault returns the profile in use.
 func (pm *ProfileManager) GetDefault() *MalleableProfile {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
@@ -147,93 +175,118 @@ func (pm *ProfileManager) GetDefault() *MalleableProfile {
 	return pm.profiles["browser"]
 }
 
+// Get returns one profile by name.
 func (pm *ProfileManager) Get(name string) *MalleableProfile {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 	return pm.profiles[name]
 }
 
+// SetCurrent changes the profile in use.
 func (pm *ProfileManager) SetCurrent(name string) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	pm.current = name
+	if _, ok := pm.profiles[name]; ok {
+		pm.current = name
+	}
 }
 
+// List returns every profile, sorted by name.
 func (pm *ProfileManager) List() []*MalleableProfile {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
-	var result []*MalleableProfile
+	out := make([]*MalleableProfile, 0, len(pm.profiles))
 	for _, p := range pm.profiles {
-		result = append(result, p)
+		out = append(out, p)
 	}
-	return result
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
+// Save stores a profile, on disk when a directory is configured.
 func (pm *ProfileManager) Save(p *MalleableProfile) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	pm.profiles[p.Name] = p
-
-	if pm.dir != "" {
-		data, err := json.MarshalIndent(p, "", "  ")
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(filepath.Join(pm.dir, p.Name+".json"), data, 0644)
+	if pm.dir == "" {
+		return nil
 	}
-	return nil
+	data, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(pm.dir, p.Name+".json"), data, 0644)
 }
 
-// GenerateRequest builds HTTP request parameters from the profile
+// AgentProfileFor projects a profile for the agents.
+func (pm *ProfileManager) AgentProfileFor(name string) *AgentProfile {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	p, ok := pm.profiles[name]
+	if !ok {
+		p = pm.profiles[pm.current]
+	}
+	if p == nil {
+		return nil
+	}
+	return &AgentProfile{
+		Name:        p.Name,
+		Method:      p.Method,
+		URIs:        p.URIs,
+		UserAgents:  p.UserAgents,
+		Headers:     p.Headers,
+		Cookies:     p.Cookies,
+		ContentType: p.ContentType,
+		EncodeMode:  p.EncodeMode,
+		Prepend:     p.Prepend,
+		Append:      p.Append,
+	}
+}
+
+// Expired reports whether the kill date of a profile has passed.
+func (p *MalleableProfile) Expired(now time.Time) bool {
+	if p == nil || p.KillDate == "" {
+		return false
+	}
+	kill, err := time.Parse("2006-01-02", p.KillDate)
+	if err != nil {
+		return false
+	}
+	return now.After(kill.Add(24 * time.Hour))
+}
+
+// GenerateRequest builds the request parameters of a profile.
 func (p *MalleableProfile) GenerateRequest(payload string) (method, uri, contentType string, headers map[string]string, body string) {
 	method = p.Method
+	if method == "" {
+		method = "POST"
+	}
 	if len(p.URIs) > 0 {
-		uri = p.URIs[0] // could randomize
+		uri = p.URIs[0]
 	}
 	contentType = p.ContentType
 	if contentType == "" {
 		contentType = "application/json"
 	}
-
-	headers = make(map[string]string)
+	headers = make(map[string]string, len(p.Headers))
 	for k, v := range p.Headers {
 		headers[k] = v
 	}
-
-	if p.Method == "POST" {
-		body = p.PostData
-		// Replace placeholders
-		body = replacePlaceholders(body, payload)
+	if method == "POST" {
+		body = ReplacePlaceholders(p.PostData, payload)
 	}
-
 	return
 }
 
-func replacePlaceholders(template, payload string) string {
-	result := template
-	// Simple placeholder replacement
-	result = replaceAll(result, "{{payload}}", payload)
-	result = replaceAll(result, "{{timestamp}}", "0") // will be filled at runtime
-	result = replaceAll(result, "{{nonce}}", "随机nonce")
-	result = replaceAll(result, "{{uuid}}", "随机uuid")
-	return result
-}
-
-func replaceAll(s, old, new string) string {
-	for {
-		idx := indexOf(s, old)
-		if idx == -1 {
-			return s
-		}
-		s = s[:idx] + new + s[idx+len(old):]
+// ReplacePlaceholders expands the templates supported by the profiles.
+func ReplacePlaceholders(template, payload string) string {
+	if template == "" {
+		return payload
 	}
-}
-
-func indexOf(s, substr string) int {
-	for i := 0; i+len(substr) <= len(s); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
+	out := strings.ReplaceAll(template, "{{payload}}", payload)
+	out = strings.ReplaceAll(out, "{{timestamp}}", strconv.FormatInt(time.Now().Unix(), 10))
+	out = strings.ReplaceAll(out, "{{nonce}}", randomHex(8))
+	out = strings.ReplaceAll(out, "{{uuid}}", randomHex(16))
+	out = strings.ReplaceAll(out, "{{random}}", randomHex(16))
+	return out
 }

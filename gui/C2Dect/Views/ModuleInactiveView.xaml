@@ -1,0 +1,27 @@
+<UserControl x:Class="C2Dect.Views.ModuleInactiveView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#0c0e14" FontFamily="Segoe UI">
+    <Grid Margin="20">
+        <Border Background="#12151c" BorderBrush="#1e2330" BorderThickness="1" CornerRadius="8" Padding="32">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560">
+                <TextBlock Text="MODULO NO DISPONIBLE EN ESTA EDICION"
+                           Foreground="#d4a017" FontSize="16" FontWeight="Bold"
+                           HorizontalAlignment="Center" FontFamily="Consolas"/>
+                <TextBlock Text="{Binding ModuleTitle}" Foreground="#e0e0e0" FontSize="20" FontWeight="Bold"
+                           HorizontalAlignment="Center" Margin="0,12,0,0"/>
+                <Border Background="#1a1508" BorderBrush="#d4a01740" BorderThickness="1" CornerRadius="4"
+                        Padding="10,6" Margin="0,16,0,0">
+                    <TextBlock Text="{Binding Notice}" Foreground="#d4a017" FontSize="12" TextWrapping="Wrap"
+                               TextAlignment="Center" MaxWidth="520"/>
+                </Border>
+                <TextBlock Text="La edicion Lite es la variante open source del proyecto: publica la estructura del panel"
+                           Foreground="#5a6070" FontSize="11" TextWrapping="Wrap" TextAlignment="Center"
+                           Margin="0,16,0,0" MaxWidth="520"/>
+                <TextBlock Text="y su estado, nunca su implementacion."
+                           Foreground="#5a6070" FontSize="11" TextWrapping="Wrap" TextAlignment="Center"
+                           MaxWidth="520"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

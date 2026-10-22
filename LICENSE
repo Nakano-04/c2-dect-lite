@@ -1,21 +1,71 @@
-MIT License
+C2-DECT Lite Non-Commercial License
 
 Copyright (c) 2026 C2-DECT Contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Version 2.0 - applies to the C2-DECT Lite edition (this repository).
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. DEFINITIONS
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+   "Software" means the source code, binaries, documentation and any other
+   material published in this repository under the C2-DECT Lite name.
+
+   "Authorized Testing" means testing systems that you own or for which you
+   hold explicit written authorization from the owner.
+
+2. GRANT OF USE
+
+   You may use, copy, modify and redistribute the Software, and create
+   derivative works of it, provided that ALL of the following are true:
+
+   a) The use is for educational purposes, personal audits, internal
+      Authorized Testing, or any other non-commercial purpose.
+
+   b) Every copy and every derivative work carries this License and keeps
+      this notice.
+
+   c) The Software is used only against systems you own or for which you
+      hold written authorization. Running it against third-party assets
+      without authorization is forbidden and may be illegal.
+
+3. COMMERCIAL USE
+
+   Commercial use of the Software, including use inside a product or a
+   service offered to third parties, requires prior written permission
+   from the copyright holders.
+
+   The C2-DECT Pro edition is the commercial edition of this project.
+
+4. ATTRIBUTION
+
+   Redistributions must keep the acknowledgments and attribution of the
+   original project, including the credits in the README.
+
+5. NO WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. THE
+   AUTHORS ARE NOT LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+   OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+6. RESPONSIBLE USE
+
+   The Software is a laboratory instrument. The authors publish it so that
+   defenders can measure their own detection and containment. Any use that
+   endangers systems or people is outside the scope of this grant.
+
+7. TERMINATION
+
+   This grant terminates automatically if you breach any of its terms. On
+   termination you must stop distributing the Software.
+
+8. NO WARRANTY OF INHERITANCE
+
+   This License applies to the C2-DECT Lite edition only. It grants no
+   rights over the C2-DECT Pro edition or over any other work of the
+   copyright holders.
+
+For commercial permission, contact the authors through the channels listed
+in the repository.

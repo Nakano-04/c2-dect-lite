@@ -3,6 +3,7 @@ build/
 *.exe
 *.dll
 *.pdb
+*.zip
 
 # Go
 *.test
@@ -41,3 +42,6 @@ desktop.ini
 # NuGet
 packages/
 *.nupkg
+
+# Secrets
+.env
