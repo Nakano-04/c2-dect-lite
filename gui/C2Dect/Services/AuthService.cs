@@ -1,16 +1,32 @@
 using System;
+using System.IO;
 using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using C2Dect.Models;
 
 namespace C2Dect.Services;
 
+/// <summary>
+/// Sesion del operador.
+///
+/// El access token vive solo en memoria. El refresh token se guarda en disco
+/// PROTEGIDO con DPAPI (CurrentUser): solo la cuenta de Windows que inicio
+/// sesion puede leerlo, y no se puede reutilizar en otra maquina.
+///
+/// La sesion se restaura sola al abrir la consola: si el refresh token sigue
+/// vivo, se pide un access token nuevo y se entra sin volver a escribir la
+/// clave.
+/// </summary>
 public class AuthService
 {
     private readonly ApiService _api;
     private string? _token;
     private string? _refreshToken;
     private Operator? _currentOperator;
+    private Tenant? _currentTenant;
     private System.Timers.Timer? _refreshTimer;
 
     public AuthService(ApiService api)
@@ -20,24 +36,20 @@ public class AuthService
 
     public bool IsAuthenticated => !string.IsNullOrEmpty(_token);
     public Operator? CurrentOperator => _currentOperator;
+    public Tenant? CurrentTenant => _currentTenant;
     public string? Token => _token;
     public string? RefreshToken => _refreshToken;
 
     /// <summary>
     /// Rol efectivo del operador. OJO: el servidor NO particiona operators.role
-    /// por tenant (server/api/handlers.go:915, callerIsAdmin), asi que un
-    /// "admin" ve y opera sobre TODOS los tenants. Es deuda del backend, no de
-    /// la GUI: la GUI lo dice en voz alta en vez de simular un aislamiento que
-    /// el servidor no aplica.
+    /// por tenant, asi que un "admin" ve y opera sobre TODOS los tenants. Es
+    /// deuda del backend, no de la GUI: la GUI lo dice en voz alta en vez de
+    /// simular un aislamiento que el servidor no aplica.
     /// </summary>
     public bool IsGlobalAdmin =>
         string.Equals(CurrentOperator?.Role, "admin", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// Claim "tid" del token: el tenant contra el que el servidor resuelve
-    /// requireSessionAccess (server/api/handlers.go:899, callerTenantID).
-    /// Si el operador no trae tenant, el servidor cae en 1.
-    /// </summary>
+    /// <summary>Tenant contra el que resuelve el servidor el token.</summary>
     public long TokenTenantId
     {
         get
@@ -47,57 +59,42 @@ public class AuthService
         }
     }
 
-    /// <summary>
-    /// Aviso que la UI muestra junto a los numeros que el servidor NO acota por
-    /// tenant: GET /api/metrics (handleMetrics, server/api/metrics_reports.go:12)
-    /// y GET /api/reports/executive (handleExecutiveReport,
-    /// server/api/metrics_reports.go:67) iteran db.ListSessions("") y
-    /// db.GetActivity(...) sin filtro de tenant, igual que GET /api/stats
-    /// (handleStats, server/api/handlers.go:1366). Sin este aviso el operador
-    /// leeria datos de otros tenants como si fueran suyos.
-    /// </summary>
     public string GlobalDataNotice =>
         !IsAuthenticated
-            ? "Métricas globales (no acotadas por tenant): el servidor las calcula sobre TODOS los tenants."
+            ? "Metricas globales (no acotadas por tenant): el servidor las calcula sobre TODOS los tenants."
             : IsGlobalAdmin
-                ? "Métricas globales (no acotadas por tenant): incluyen los datos de TODOS los tenants (rol admin global)."
-                : $"Métricas globales (no acotadas por tenant): el servidor las calcula sobre TODOS los tenants aunque tu token esté acotado al tenant #{TokenTenantId}.";
+                ? "Metricas globales (no acotadas por tenant): incluyen los datos de TODOS los tenants (rol admin global)."
+                : $"Metricas globales (no acotadas por tenant): el servidor las calcula sobre TODOS los tenants aunque tu token este acotado al tenant #{TokenTenantId}.";
 
-    /// <summary>
-    /// Descripcion corta del alcance efectivo del token, para los banners de
-    /// la UI. No sustituye a TenantService.AccessNotice (que additionally
-    /// distingue el tenant seleccionado del tenant del token).
-    /// </summary>
     public string TokenScopeNotice =>
         IsGlobalAdmin
-            ? $"Rol admin global (operators.role no está particionado): alcance sobre el tenant #{TokenTenantId} y el resto de tenants."
+            ? $"Rol admin global (operators.role no esta particionado): alcance sobre el tenant #{TokenTenantId} y el resto de tenants."
             : $"Operador acotado al tenant #{TokenTenantId} del token.";
+
+    // ------------------------------------------------------------- login
 
     public async Task<(bool ok, string error)> Login(string username, string password, string? totpCode = null)
     {
         try
         {
             var result = await _api.Login(username, password, totpCode);
-            if (result == null) return (false, "Respuesta vacía del servidor.");
+            if (result == null) return (false, "Respuesta vacia del servidor.");
 
             _token = result.Value.token;
             _refreshToken = result.Value.refreshToken;
             _currentOperator = result.Value.op;
             _api.Configure(_api.BaseUrl ?? "", _token);
             StartRefreshTimer();
+            SaveSession();
             return (true, "");
         }
         catch (HttpRequestException ex)
         {
             string msg = ex.Message;
-            if (msg.Contains("invalid credentials")) return (false, "Credenciales inválidas (usuario/clave). Usa admin / Admin123456!");
-            if (msg.Contains("account locked"))
-            {
-                string wait = ParseLockedWait(msg);
-                return (false, $"Cuenta bloqueada{wait}. Si eres el admin local, corre en server/: go run ./cmd --unlock admin y reintenta. No reintentes seguido.");
-            }
-            if (msg.Contains("2fa required") || msg.Contains("totp")) return (false, "TOTP requerido: ingresa código de 6 dígitos");
-            if (msg.Contains("invalid 2fa")) return (false, "Código TOTP inválido");
+            if (msg.Contains("invalid credentials")) return (false, "Credenciales invalidas (usuario/clave).");
+            if (msg.Contains("account locked")) return (false, "Cuenta bloqueada temporalmente.");
+            if (msg.Contains("2fa required") || msg.Contains("totp")) return (false, "TOTP requerido: ingresa codigo de 6 digitos");
+            if (msg.Contains("invalid 2fa")) return (false, "Codigo TOTP invalido");
             return (false, msg.Length > 200 ? msg[..200] : msg);
         }
         catch (Exception ex)
@@ -106,30 +103,48 @@ public class AuthService
         }
     }
 
-    private void StartRefreshTimer()
+    /// <summary>
+    /// Restaura la sesion guardada. Devuelve false si no hay sesion, si el
+    /// refresh token ya no vale o si el servidor no responde.
+    /// </summary>
+    public async Task<bool> TryRestoreAsync()
     {
-        _refreshTimer?.Dispose();
-        _refreshTimer = new System.Timers.Timer(14 * 60 * 1000);
-        _refreshTimer.Elapsed += async (s, e) => {
-            if (_refreshToken != null) {
-                var newToken = await _api.Refresh(_refreshToken);
-                if (newToken != null) {
-                    _token = newToken;
-                    _api.Configure(_api.BaseUrl ?? "", _token);
-                }
-            }
-        };
-        _refreshTimer.AutoReset = true;
-        _refreshTimer.Start();
+        try
+        {
+            var stored = ReadSession();
+            if (stored == null || string.IsNullOrEmpty(stored.RefreshToken)) return false;
+
+            if (!string.IsNullOrEmpty(stored.ServerUrl)) _api.BaseUrl = stored.ServerUrl;
+
+            var refreshed = await _api.Refresh(stored.RefreshToken);
+            if (string.IsNullOrEmpty(refreshed)) return false;
+
+            _token = refreshed;
+            _refreshToken = stored.RefreshToken;
+            _api.Configure(_api.BaseUrl ?? "", _token);
+
+            var me = await _api.GetMe();
+            _currentOperator = me?.Operator;
+            _currentTenant = me?.Tenant;
+            if (_currentOperator != null) _api.ActiveTenantId = _currentOperator.TenantId;
+
+            StartRefreshTimer();
+            Logger.Log("Session restored from the local store");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log("Session restore failed: " + ex.Message);
+            DeleteSessionFile();
+            return false;
+        }
     }
 
+    // ------------------------------------------------------------- logout
+
     /// <summary>
-    /// Logout REAL: revoca en el servidor el refresh token y el access token
-    /// (POST /api/auth/logout) y después limpia el estado local. Antes el
-    /// logout era únicamente local: el token seguía vivo en el servidor y el
-    /// refresh timer seguía corriendo.
-    /// Devuelve false si el servidor no confirmó la revocación (el estado
-    /// local se limpia igual: la sesión del operador se cierra en la GUI).
+    /// Logout REAL: revoca el refresh token en el servidor y despues limpia
+    /// el estado local (incluido el fichero protegido con DPAPI).
     /// </summary>
     public async Task<bool> LogoutAsync()
     {
@@ -140,53 +155,116 @@ public class AuthService
             try
             {
                 ok = await _api.Logout(rt);
-                if (!ok) Logger.Log("Server logout rejected: " + (_api.LastError ?? "sin detalle"));
             }
             catch (Exception ex)
             {
                 Logger.LogError("Server logout failed", ex);
-                ok = false;
             }
         }
         Logout();
         return ok;
     }
 
-    /// <summary>
-    /// Logout SOLO local: descarta token, refresh token y timer. No toca el
-    /// servidor. Usar <see cref="LogoutAsync"/> para cerrar la sesión de verdad.
-    /// </summary>
+    /// <summary>Logout SOLO local: descarta token, timer y fichero guardado.</summary>
     public void Logout()
     {
-        _refreshTimer?.Dispose();
-        _refreshTimer = null;
+        StopRefreshTimer();
         _token = null;
         _refreshToken = null;
         _currentOperator = null;
+        _currentTenant = null;
+        _api.ClearToken();
+        DeleteSessionFile();
     }
 
-    private static string ParseLockedWait(string msg)
+    // ------------------------------------------------------------ refresh
+
+    private void StartRefreshTimer()
+    {
+        StopRefreshTimer();
+        _refreshTimer = new System.Timers.Timer { Interval = 10 * 60 * 1000, AutoReset = true };
+        _refreshTimer.Elapsed += async (s, e) => await RefreshSessionAsync();
+        _refreshTimer.Start();
+    }
+
+    private void StopRefreshTimer()
+    {
+        if (_refreshTimer == null) return;
+        _refreshTimer.Stop();
+        _refreshTimer.Dispose();
+        _refreshTimer = null;
+    }
+
+    private async Task RefreshSessionAsync()
+    {
+        if (string.IsNullOrEmpty(_refreshToken)) return;
+        try
+        {
+            var refreshed = await _api.Refresh(_refreshToken);
+            if (string.IsNullOrEmpty(refreshed)) return;
+            _token = refreshed;
+            _api.Configure(_api.BaseUrl ?? "", _token);
+            SaveSession();
+        }
+        catch (Exception ex)
+        {
+            Logger.Log("Session refresh failed: " + ex.Message);
+        }
+    }
+
+    // ------------------------------------------------- persistencia DPAPI
+
+    private sealed class StoredSession
+    {
+        public string ServerUrl { get; set; } = "";
+        public string RefreshToken { get; set; } = "";
+    }
+
+    private static string SessionFile => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "C2Dect", "session.bin");
+
+    private static byte[] Entropy => Encoding.UTF8.GetBytes("c2-dect-lite/2.0.0");
+
+    /// <summary>Guarda el refresh token protegido con DPAPI.</summary>
+    private void SaveSession()
     {
         try
         {
-            int i = msg.IndexOf("locked_until", StringComparison.OrdinalIgnoreCase);
-            if (i < 0) return " - espera ~15 min";
-            int q1 = msg.IndexOf('"', i);
-            int q2 = msg.IndexOf('"', q1 + 1);
-            string ts = q1 >= 0 && q2 > q1 ? msg.Substring(q1 + 1, q2 - q1 - 1) : "";
-            // también formato 2026-..T..Z sin comillas
-            if (string.IsNullOrEmpty(ts))
+            if (string.IsNullOrEmpty(_refreshToken)) return;
+            var payload = new StoredSession
             {
-                var m = System.Text.RegularExpressions.Regex.Match(msg, @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z?");
-                ts = m.Success ? m.Value : "";
-            }
-            if (DateTimeOffset.TryParse(ts, out var until))
-            {
-                var mins = Math.Max(1, (int)Math.Ceiling((until - DateTimeOffset.UtcNow).TotalMinutes));
-                return $" - reintenta en ~{mins} min (hasta {until:HH:mm} UTC)";
-            }
+                ServerUrl = _api.BaseUrl ?? "",
+                RefreshToken = _refreshToken,
+            };
+            var plain = JsonSerializer.SerializeToUtf8Bytes(payload);
+            var protectedBytes = ProtectedData.Protect(plain, Entropy, DataProtectionScope.CurrentUser);
+            Directory.CreateDirectory(Path.GetDirectoryName(SessionFile)!);
+            File.WriteAllBytes(SessionFile, protectedBytes);
         }
-        catch { }
-        return " - espera ~15 min";
+        catch (Exception ex)
+        {
+            Logger.Log("Could not store the session: " + ex.Message);
+        }
+    }
+
+    private static StoredSession? ReadSession()
+    {
+        try
+        {
+            if (!File.Exists(SessionFile)) return null;
+            var protectedBytes = File.ReadAllBytes(SessionFile);
+            var plain = ProtectedData.Unprotect(protectedBytes, Entropy, DataProtectionScope.CurrentUser);
+            return JsonSerializer.Deserialize<StoredSession>(plain);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void DeleteSessionFile()
+    {
+        try { if (File.Exists(SessionFile)) File.Delete(SessionFile); } catch { }
     }
 }

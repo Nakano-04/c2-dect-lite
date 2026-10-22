@@ -1,6 +1,9 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 $base = Join-Path $PSScriptRoot "..\build\.e2e"
-$work = Join-Path $base "work"
+# directorio propio por ejecucion: si un servidor anterior mantiene el fichero
+# abierto, la base de datos de esta corrida nunca se pisa con la anterior
+$work = Join-Path $base ("work-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
+New-Item -ItemType Directory -Path $work -Force | Out-Null
 
 # limpieza: un servidor o agente de una corrida anterior tiene el puerto y la
 # base de datos ocupados
@@ -9,8 +12,6 @@ Get-Process -Name "server" -ErrorAction SilentlyContinue |
     Where-Object { $_.Path -like "*c2-dect-lite*" } | Stop-Process -Force
 Start-Sleep -Milliseconds 500
 
-Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Path $work -Force | Out-Null
 
 $env:C2_JWT_SECRET = "test-secret-for-the-c2-dect-lite-e2e-run-0123456789"
 $env:C2_BOOTSTRAP_USER = "admin"
@@ -20,7 +21,18 @@ $env:C2_KEY_ROTATION_EVERY = "3"
 
 $server = Start-Process -FilePath (Join-Path $PSScriptRoot "..\build\server.exe") -WorkingDirectory $work -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $work "server.out") -RedirectStandardError (Join-Path $work "server.err")
-Start-Sleep -Seconds 3
+
+# el servidor tarda en levantar (migraciones + generacion de la clave del
+# marketplace): se espera a que responda el health check
+$up = $false
+for ($wait = 0; $wait -lt 30; $wait++) {
+    Start-Sleep -Seconds 1
+    try {
+        $h = Invoke-RestMethod -Uri "http://127.0.0.1:18443/api/health" -TimeoutSec 3
+        if ($h.status -eq "ok") { $up = $true; break }
+    } catch { }
+}
+if (-not $up) { Write-Host "FAIL: the server did not start" -ForegroundColor Red; exit 1 }
 
 function Fail($msg) { Write-Host "FAIL: $msg" -ForegroundColor Red; exit 1 }
 function Ok($msg) { Write-Host "OK:   $msg" -ForegroundColor Green }
@@ -43,10 +55,19 @@ try {
     $agent = Start-Process -FilePath (Join-Path $PSScriptRoot "..\build\agent.exe") -WorkingDirectory $work -PassThru -WindowStyle Hidden `
         -ArgumentList @("-s", "127.0.0.1", "-p", "18443", "-S", "2") `
         -RedirectStandardOutput (Join-Path $work "agent.out") -RedirectStandardError (Join-Path $work "agent.err")
-    Start-Sleep -Seconds 4
 
-    $sessions = Invoke-RestMethod -Uri "http://127.0.0.1:18443/api/sessions" -Headers $headers -TimeoutSec 10
-    if ($sessions.sessions.Count -lt 1) { Fail "the agent did not register" }
+    # el agente puede tardar un par de intentos en registrar (si el servidor
+    # aun no escucha, el beacon falla y reintenta con backoff): se espera a que
+    # aparezca en vez de dar un tiempo fijo
+    $sessions = $null
+    for ($wait = 0; $wait -lt 30; $wait++) {
+        Start-Sleep -Seconds 1
+        try {
+            $sessions = Invoke-RestMethod -Uri "http://127.0.0.1:18443/api/sessions" -Headers $headers -TimeoutSec 5
+        } catch { continue }
+        if ($sessions.sessions -and $sessions.sessions.Count -ge 1) { break }
+    }
+    if (-not $sessions -or -not $sessions.sessions -or $sessions.sessions.Count -lt 1) { Fail "the agent did not register" }
     $sid = $sessions.sessions[0].id
     Ok "agent registered: $sid ($($sessions.sessions[0].hostname))"
 
@@ -228,14 +249,19 @@ c2.log("INFO", string.sub(info, 1, 40))
 
     $scriptTask = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:18443/api/sessions/$sid/task" -Headers $headers `
         -ContentType "application/json" -Body (@{ command = "script"; args = $envelope } | ConvertTo-Json)
+    # el agente entrega una tarea por beacon y el beacon lleva jitter: se
+    # espera con margen
     $luaOut = ""
-    for ($i = 0; $i -lt 20; $i++) {
+    for ($i = 0; $i -lt 45; $i++) {
         Start-Sleep -Seconds 2
         $tasks = Invoke-RestMethod -Uri "http://127.0.0.1:18443/api/sessions/$sid/tasks" -Headers $headers -TimeoutSec 10
         $t = $tasks.tasks | Where-Object { $_.id -eq $scriptTask.task.id } | Select-Object -First 1
         if ($t.status -eq "completed" -or $t.status -eq "error") { $luaOut = "$($t.result) $($t.error)"; break }
     }
-    if ($luaOut -notmatch "script de la comunidad en marcha") { Fail "the signed lua script did not run: $luaOut" }
+    if ($luaOut -notmatch "script de la comunidad en marcha") {
+        $dump = ($tasks.tasks | Select-Object -First 8 | ForEach-Object { "$($_.id):$($_.command):$($_.status)" }) -join " "
+        Fail "the signed lua script did not run: '$luaOut' [tasks: $dump]"
+    }
     Ok "lethal script: the signed lua script runs in the agent sandbox"
 
     # un script sin firmar no puede viajar

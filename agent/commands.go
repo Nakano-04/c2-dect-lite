@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,18 @@ import (
 	"strings"
 	"time"
 )
+
+// cmdTimeout es el techo de una orden externa (tasklist, ipconfig, shell...).
+// Sin este techo, una orden bloqueada (tasklist se queda pegado cuando el
+// SCM va lento) deja al agente sin beacon y la sesion se queda colgada.
+const cmdTimeout = 20 * time.Second
+
+// runCmd ejecuta una orden externa con limite de tiempo.
+func runCmd(name string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
+	defer cancel()
+	return exec.CommandContext(ctx, name, args...).CombinedOutput()
+}
 
 // execute runs one task and returns its output.
 //
@@ -108,13 +121,13 @@ func runShell(command string) (string, string, bool) {
 	if strings.TrimSpace(command) == "" {
 		return "", "no command supplied", false
 	}
-	var cmd *exec.Cmd
+	var out []byte
+	var err error
 	if runtime.GOOS == "windows" {
-		cmd = exec.Command("cmd.exe", "/C", command)
+		out, err = runCmd("cmd.exe", "/C", command)
 	} else {
-		cmd = exec.Command("sh", "-c", command)
+		out, err = runCmd("sh", "-c", command)
 	}
-	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return string(out), err.Error(), false
 	}
@@ -141,13 +154,13 @@ Time: %s`,
 // processList lists the running processes in a portable way.
 func processList() (string, string, bool) {
 	if runtime.GOOS == "windows" {
-		out, err := exec.Command("tasklist", "/FO", "CSV").CombinedOutput()
+		out, err := runCmd("tasklist", "/FO", "CSV")
 		if err != nil {
 			return string(out), err.Error(), false
 		}
 		return string(out), "", true
 	}
-	out, err := exec.Command("ps", "-eo", "pid,ppid,user,etime,comm,args").CombinedOutput()
+	out, err := runCmd("ps", "-eo", "pid,ppid,user,etime,comm,args")
 	if err != nil {
 		return string(out), err.Error(), false
 	}
@@ -160,13 +173,12 @@ func killProcess(pid string) (string, string, bool) {
 	if err != nil || id <= 0 {
 		return "", "a valid process id is required", false
 	}
-	var cmd *exec.Cmd
+	var out []byte
 	if runtime.GOOS == "windows" {
-		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(id))
+		out, err = runCmd("taskkill", "/F", "/PID", strconv.Itoa(id))
 	} else {
-		cmd = exec.Command("kill", "-9", strconv.Itoa(id))
+		out, err = runCmd("kill", "-9", strconv.Itoa(id))
 	}
-	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return string(out), err.Error(), false
 	}
@@ -175,18 +187,19 @@ func killProcess(pid string) (string, string, bool) {
 
 // runningServices lists the services of the host.
 func runningServices() (string, string, bool) {
-	var cmd *exec.Cmd
+	var name string
+	var args []string
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("sc", "query", "state=", "all")
+		name, args = "sc", []string{"query", "state=", "all"}
 	case "linux":
-		cmd = exec.Command("systemctl", "list-units", "--type=service", "--no-pager", "--no-legend")
+		name, args = "systemctl", []string{"list-units", "--type=service", "--no-pager", "--no-legend"}
 	case "darwin":
-		cmd = exec.Command("launchctl", "list")
+		name, args = "launchctl", []string{"list"}
 	default:
 		return "service listing is not available on this platform", "", true
 	}
-	out, err := cmd.CombinedOutput()
+	out, err := runCmd(name, args...)
 	if err != nil && len(out) == 0 {
 		return "", err.Error(), false
 	}
@@ -195,18 +208,19 @@ func runningServices() (string, string, bool) {
 
 // networkInfo returns the configuration of the network interfaces.
 func networkInfo() (string, string, bool) {
-	var cmd *exec.Cmd
+	var name string
+	var args []string
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("ipconfig", "/all")
+		name, args = "ipconfig", []string{"/all"}
 	case "linux":
-		cmd = exec.Command("ip", "-o", "addr")
+		name, args = "ip", []string{"-o", "addr"}
 	case "darwin":
-		cmd = exec.Command("ifconfig")
+		name, args = "ifconfig", nil
 	default:
-		cmd = exec.Command("hostname", "-I")
+		name, args = "hostname", []string{"-I"}
 	}
-	out, err := cmd.CombinedOutput()
+	out, err := runCmd(name, args...)
 	if err != nil && len(out) == 0 {
 		return "", err.Error(), false
 	}
@@ -215,18 +229,17 @@ func networkInfo() (string, string, bool) {
 
 // networkConnections lists the established network connections.
 func networkConnections() (string, string, bool) {
-	var cmd *exec.Cmd
+	var name string
+	var args []string
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("netstat", "-ano")
+		name, args = "netstat", []string{"-ano"}
 	case "linux":
-		cmd = exec.Command("ss", "-tunap")
-	case "darwin":
-		cmd = exec.Command("netstat", "-an")
+		name, args = "ss", []string{"-tunap"}
 	default:
-		cmd = exec.Command("netstat", "-an")
+		name, args = "netstat", []string{"-an"}
 	}
-	out, err := cmd.CombinedOutput()
+	out, err := runCmd(name, args...)
 	if err != nil && len(out) == 0 {
 		return "", err.Error(), false
 	}

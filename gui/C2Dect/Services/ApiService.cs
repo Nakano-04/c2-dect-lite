@@ -1,4 +1,4 @@
-﻿using C2Dect.Models;
+using C2Dect.Models;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -103,7 +103,7 @@ public class ApiService
 
     private string Url(string path) => $"{_baseUrl}{path}";
 
-    /// <summary>AÃ±ade el tenant activo a la ruta si el servidor lo honra.</summary>
+    /// <summary>AÃƒÆ’Ã‚Â±ade el tenant activo a la ruta si el servidor lo honra.</summary>
     private string WithTenant(string path)
     {
         if (ActiveTenantId is not long tid || tid <= 0) return path;
@@ -549,7 +549,7 @@ public class ApiService
 
     // -------------------------------------------------------------- extras
 
-    /// <summary>Espacio de trabajo: filtro por etiqueta de sesiÃ³n.</summary>
+    /// <summary>Espacio de trabajo: filtro por etiqueta de sesiÃƒÆ’Ã‚Â³n.</summary>
     public async Task<bool> SetWorkspace(string sessionId, string workspace)
         => await Put<JObject>($"/api/sessions/{sessionId}/tag", new { tags = "ws:" + workspace }) != null;
 
@@ -647,8 +647,8 @@ public class ApiService
     /// <summary>Identidad del operador con la que se abre la consola.</summary>
     public sealed class MeEnvelope
     {
-        [JsonProperty("operator")] public Operator? op { get; set; }
-        [JsonProperty("tenant")] public Tenant? tenant { get; set; }
+        [JsonProperty("operator")] public Operator? Operator { get; set; }
+        [JsonProperty("tenant")] public Tenant? Tenant { get; set; }
         [JsonProperty("permissions")] public List<string>? permissions { get; set; }
         [JsonProperty("version")] public string? version { get; set; }
     }

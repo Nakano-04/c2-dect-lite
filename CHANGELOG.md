@@ -1,12 +1,26 @@
-﻿# Changelog
+# Changelog
 
 ## 2.0.0
 
-La edicion Lite pasa de esqueleto a producto de laboratorio. La consola es la
-misma que la del proyecto completo, recortada: se retiran los modulos mas
-ofensivos y los que quedan se declaran inactivos.
+La edicion Lite pasa de esqueleto a producto de laboratorio.
 
-### Consola (GUI)
+### Estabilidad (medido)
+
+- **E2E de API**: 26 comprobaciones, **3/3 corridas verdes**.
+- **Smoke de la consola** (login real + paneles): **3/3 corridas verdes**.
+- `go vet` limpio en los tres modulos Go; `dotnet build` sin errores.
+- Bugs encontrados por la medicion y corregidos:
+  - `ps` (tasklist) podia **colgar el agente entero** y dejar la sesion sin
+    beacon: ahora toda orden externa lleva timeout de 20 s y la tarea tiene un
+    watchdog de 90 s;
+  - el agente tarda un par de reintentos en registrar si el servidor aun no
+    escucha (el backoff es correcto): el arnes ahora espera a que aparezca;
+  - la consola se abria dos veces si el login coincidia con el restaurado de
+    sesion: hay guardia;
+  - la barra lateral no tenia scroll y las secciones de abajo quedaban fuera
+    de la ventana.
+
+### Consola
 
 - La consola del operador pasa a ser la de `c2-dect` (misma ventana, mismo tema,
   mismas vistas), portada desde el proyecto completo.
