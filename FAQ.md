@@ -11,12 +11,7 @@ The **Lite** version is free to use **exclusively for educational purposes, pers
 **What is the difference between the Lite and Pro versions?**
 The **Pro** version is a commercial, paid edition aimed at professional teams and enterprise use. It includes advanced features not available in Lite, such as:
 
-- **SOCKS5 Tunneling**: Route traffic through agents (pivoting).
-- **Interactive File Browser**: Real-time remote filesystem exploration.
-- **Advanced Persistence Modules**: Scheduled Tasks, WMI, and Registry persistence.
-- **AV/EDR Evasion**: Dynamic obfuscation and polymorphic agent generation.
-- **Multiple Output Formats**: Generate agents as PowerShell, HTA, VBS, and MSI.
-- **Priority Support**: Direct assistance and deployment consulting.
+- in https://github.com/Nakano-04/c2-dect-lite/blob/master/c2-dect.md
 
 ## Installation & Requirements
 
